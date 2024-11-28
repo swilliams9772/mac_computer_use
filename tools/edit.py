@@ -2,7 +2,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal, get_args
 
-from anthropic.types.beta import BetaToolTextEditor20241022Param
+from anthropic.types.beta import BetaToolTextEditor20241022Param, BetaToolUnionParam
 
 from .base import BaseAnthropicTool, CLIResult, ToolError, ToolResult
 from .run import maybe_truncate, run
