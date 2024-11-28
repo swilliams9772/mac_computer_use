@@ -7,13 +7,12 @@ import termios
 import tty
 from typing import Optional
 
-from anthropic.types.beta import BetaToolUnionParam
 from loguru import logger
 
-from .base import BaseAnthropicTool, ToolResult
+from .base_tool import BaseTool, ToolResult
 
 
-class BashTool(BaseAnthropicTool):
+class BashTool(BaseTool):
     """Execute bash commands in an interactive shell."""
 
     def __init__(self):
@@ -52,7 +51,7 @@ class BashTool(BaseAnthropicTool):
             logger.error(f"Failed to initialize shell: {e}")
             raise
 
-    async def __call__(self, command: str, **kwargs) -> ToolResult:
+    async def execute(self, command: str, **kwargs) -> ToolResult:
         """Execute a bash command."""
         try:
             if not self._process or self._process.poll() is not None:
@@ -88,36 +87,27 @@ class BashTool(BaseAnthropicTool):
             output_str = "".join(output)
             
             if exit_code == 0:
-                return ToolResult(output=output_str)
+                return ToolResult(success=True, output=output_str)
             else:
-                return ToolResult(error=f"Command failed with exit code {exit_code}: {output_str}")
+                return ToolResult(success=False, error=f"Command failed with exit code {exit_code}: {output_str}")
 
         except Exception as e:
             logger.error(f"Failed to execute command: {e}")
-            return ToolResult(error=str(e))
+            return ToolResult(success=False, error=str(e))
 
-    def to_params(self) -> BetaToolUnionParam:
-        """Convert tool to API parameters."""
-        return {
-            "type": "function",
-            "function": {
-                "name": "bash",
-                "description": "Execute bash commands in an interactive shell",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "command": {
-                            "type": "string",
-                            "description": "The bash command to execute"
-                        }
-                    },
-                    "required": ["command"]
-                }
-            }
-        }
+    async def cleanup(self):
+        """Cleanup resources."""
+        try:
+            if self._process and self._process.poll() is None:
+                self._process.terminate()
+                self._process.wait(timeout=1)
+            if self._master_fd is not None:
+                os.close(self._master_fd)
+        except Exception as e:
+            logger.error(f"Error cleaning up BashTool: {e}")
 
     def __del__(self):
-        """Cleanup resources."""
+        """Cleanup resources on deletion."""
         try:
             if self._process and self._process.poll() is None:
                 self._process.terminate()

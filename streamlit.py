@@ -1,11 +1,17 @@
 """Streamlit UI for computer use tools."""
 
 import os
+import sys
 import asyncio
 import base64
 from typing import Optional
 from pathlib import Path
 from datetime import datetime, timedelta
+
+# Add the parent directory to Python path
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 
 import streamlit as st
 from loguru import logger
@@ -14,8 +20,9 @@ from computer_use.tools.collection import ToolCollection
 from computer_use.tools.bash import BashTool
 from computer_use.tools.computer import ComputerTool
 from computer_use.tools.edit import EditTool
-from computer_use.tools.base import ToolResult
+from computer_use.tools.base_tool import ToolResult
 from computer_use.tools.productivity import ProductivityManager
+from computer_use.tools.cursor_integration import CursorIntegration
 
 
 def format_duration(duration: timedelta) -> str:
@@ -71,19 +78,29 @@ def init_session_state():
         st.session_state.start_time = datetime.now()
     if "productivity_manager" not in st.session_state:
         st.session_state.productivity_manager = ProductivityManager()
+    if "cursor" not in st.session_state:
+        st.session_state.cursor = CursorIntegration()
 
 
-def initialize_session():
+async def initialize_session():
     """Initialize session components and managers."""
     if not st.session_state.initialized:
         try:
+            # Initialize tools collection
+            st.session_state.tools = ToolCollection()
+            
+            # Create tool instances
+            bash_tool = BashTool()
+            computer_tool = ComputerTool()
+            edit_tool = EditTool()
+            
+            # Add tools to collection
+            st.session_state.tools.registry.register(bash_tool)
+            st.session_state.tools.registry.register(computer_tool)
+            st.session_state.tools.registry.register(edit_tool)
+            
             # Initialize tools
-            tools = [
-                BashTool(),
-                ComputerTool(),
-                EditTool()
-            ]
-            st.session_state.tools = ToolCollection(tools)
+            await st.session_state.tools.initialize()
             
             st.session_state.initialized = True
             logger.info(f"Session initialized with ID: {st.session_state.session_id}")
@@ -128,6 +145,89 @@ def render_sidebar():
             st.metric("Last Active", last_saved)
             st.metric("Duration", format_duration(current_time - st.session_state.start_time))
         st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_productivity_sidebar():
+    with st.sidebar:
+        st.markdown("## 📊 Productivity Stats")
+        
+        stats = st.session_state.productivity_manager.get_productivity_stats()
+        
+        # Active Windows
+        st.markdown("### 🪟 Window Activity")
+        for window, percentage in stats['active_windows'].items():
+            st.progress(percentage / 100, text=f"{window}: {percentage}%")
+            
+        # Time Tracking
+        st.markdown("### ⏱️ Time Tracking")
+        st.metric("Total Active Time (mins)", stats['total_active_time'])
+        st.metric("Current Window", stats['current_window'])
+        
+        # Clipboard
+        st.markdown("### 📋 Clipboard History")
+        st.metric("Saved Items", stats['clipboard_items'])
+        
+        # Controls
+        st.markdown("### ⚙️ Controls")
+        if st.button("Clear History"):
+            st.session_state.productivity_manager.clear_history()
+            st.rerun()
+            
+        break_interval = st.number_input(
+            "Break Interval (mins)",
+            min_value=15,
+            max_value=120,
+            value=45
+        )
+        if st.button("Schedule Breaks"):
+            st.session_state.productivity_manager.schedule_breaks(break_interval)
+            st.success(f"Breaks scheduled every {break_interval} minutes")
+
+
+def render_cursor_controls():
+    """Render Cursor-specific controls"""
+    st.markdown("## 🖱️ Cursor Controls")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Launch GUI"):
+            with st.spinner("Launching Cursor..."):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(st.session_state.cursor.launch_gui())
+                finally:
+                    loop.close()
+                
+    with col2:
+        if st.button("Launch CLI"):
+            with st.spinner("Launching Cursor..."):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    loop.run_until_complete(st.session_state.cursor.launch_cli())
+                finally:
+                    loop.close()
+                
+    # Cursor Settings
+    st.markdown("### ⚙️ Cursor Settings")
+    cursor_width = st.slider("Cursor Width", 1, 10, 2)
+    cursor_color = st.color_picker("Cursor Color", "#00cf86")
+    
+    if st.button("Apply Settings"):
+        settings = {
+            "cursor_width": cursor_width,
+            "cursor_color": cursor_color
+        }
+        with st.spinner("Applying settings..."):
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(
+                    st.session_state.cursor.configure_cursor(settings)
+                )
+            finally:
+                loop.close()
 
 
 def apply_custom_css():
@@ -226,80 +326,7 @@ def render_help():
     """, unsafe_allow_html=True)
 
 
-async def execute_command(command):
-    """Execute command and return result."""
-    try:
-        # Initialize tools if needed
-        if not st.session_state.tools:
-            st.session_state.tools = ToolCollection([
-                BashTool(),
-                ComputerTool(),
-                EditTool()
-            ])
-        
-        # Execute command
-        result = await st.session_state.tools.execute(command)
-        
-        # Handle base64 image data more safely
-        if result and result.base64_image:
-            try:
-                # Just verify the image data is valid
-                import base64
-                import io
-                from PIL import Image
-                base64.b64decode(result.base64_image)
-            except Exception as e:
-                logger.error(f"Error verifying image data: {e}")
-                return ToolResult(
-                    output=result.output,
-                    error=f"Error processing image: {str(e)}"
-                )
-                
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error executing command: {e}")
-        return ToolResult(output=None, error=str(e))
-
-
-def render_productivity_sidebar():
-    with st.sidebar:
-        st.markdown("## 📊 Productivity Stats")
-        
-        stats = st.session_state.productivity_manager.get_productivity_stats()
-        
-        # Active Windows
-        st.markdown("### 🪟 Window Activity")
-        for window, percentage in stats['active_windows'].items():
-            st.progress(percentage / 100, text=f"{window}: {percentage}%")
-            
-        # Time Tracking
-        st.markdown("### ⏱️ Time Tracking")
-        st.metric("Total Active Time (mins)", stats['total_active_time'])
-        st.metric("Current Window", stats['current_window'])
-        
-        # Clipboard
-        st.markdown("### 📋 Clipboard History")
-        st.metric("Saved Items", stats['clipboard_items'])
-        
-        # Controls
-        st.markdown("### ⚙️ Controls")
-        if st.button("Clear History"):
-            st.session_state.productivity_manager.clear_history()
-            st.rerun()
-            
-        break_interval = st.number_input(
-            "Break Interval (mins)",
-            min_value=15,
-            max_value=120,
-            value=45
-        )
-        if st.button("Schedule Breaks"):
-            st.session_state.productivity_manager.schedule_breaks(break_interval)
-            st.success(f"Breaks scheduled every {break_interval} minutes")
-
-
-async def main():
+def main():
     """Main application entry point."""
     # Apply custom styling
     apply_custom_css()
@@ -308,7 +335,13 @@ async def main():
     init_session_state()
     
     # Initialize session components
-    initialize_session()
+    if not st.session_state.initialized:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(initialize_session())
+        finally:
+            loop.close()
     
     # Render sidebar
     render_sidebar()
@@ -316,10 +349,14 @@ async def main():
     # Render productivity sidebar
     render_productivity_sidebar()
     
+    # Render cursor controls
+    render_cursor_controls()
+    
     # Main content
     st.title("💻 Computer Use")
     st.markdown("""
-        Control your computer using natural language commands. Type your command below and press Execute.
+        Control your computer using natural language commands. 
+        Type your command below and press Execute.
     """)
     
     # Command input section
@@ -356,7 +393,14 @@ async def main():
         try:
             # Execute command asynchronously
             with st.spinner("🔄 Executing command..."):
-                result = await execute_command(command)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(
+                        st.session_state.tools.execute("ComputerTool", command)
+                    )
+                finally:
+                    loop.close()
                 
                 if not result:
                     st.markdown(
@@ -406,12 +450,8 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
+        main()
     except KeyboardInterrupt:
         st.warning("Application shutting down...")
     except Exception as e:
         st.error(f"Application error: {str(e)}")
-    finally:
-        loop.close()

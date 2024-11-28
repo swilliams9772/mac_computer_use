@@ -2,149 +2,78 @@
 
 import asyncio
 from typing import List, Optional, Dict
-from anthropic.types.beta import BetaToolUnionParam
+import logging
 
-from .base import BaseAnthropicTool, ToolError, ToolResult
-from .bash import BashTool
+from .base_tool import BaseTool, ToolResult
+from .registry import ToolRegistry
+from .error_handler import ErrorHandler
+from .config_manager import ConfigManager
+from .cache_manager import CacheManager
+
+logger = logging.getLogger(__name__)
 
 
 class ToolCollection:
-    """A collection of anthropic-defined tools."""
+    """Enhanced tool collection with improved management"""
 
-    def __init__(self, tools: List[BaseAnthropicTool]):
-        self.tools = tools
-        # Create tool map using the name from tool parameters
-        self.tool_map = {}
-        for tool in tools:
-            params = tool.to_params()
-            if isinstance(params, dict) and "function" in params:
-                name = params["function"].get("name")
-                if name:
-                    self.tool_map[name] = tool
+    def __init__(self):
+        self.registry = ToolRegistry()
+        self.error_handler = ErrorHandler()
+        self.config = ConfigManager()
+        self.cache = CacheManager()
 
-    def to_params(self) -> List[BetaToolUnionParam]:
-        return [tool.to_params() for tool in self.tools]
-
-    async def execute(self, command: str | None = None, **kwargs) -> ToolResult:
-        """Execute a command using the appropriate tool."""
+    async def initialize(self):
+        """Initialize tool collection"""
         try:
-            if not self.tools:
-                return ToolResult(
-                    output=None,
-                    error="No tools available"
-                )
-            
-            # Handle natural language commands
-            if command and not kwargs:
-                # Parse natural language command
-                cmd_parts = command.lower().split(" and ")
-                results = []
-                
-                for part in cmd_parts:
-                    part = part.strip()
+            # Initialize each registered tool
+            for tool_name in self.registry.list_tools():
+                tool = self.registry.get_tool(tool_name)
+                if await tool.validate():
+                    logger.info(f"Initialized tool: {tool_name}")
+                else:
+                    logger.warning(f"Tool validation failed: {tool_name}")
                     
-                    # Handle special commands
-                    if "open" in part:
-                        # Map common app names to their macOS names
-                        app_map = {
-                            "safari": "Safari",
-                            "chrome": "Google Chrome",
-                            "firefox": "Firefox",
-                            "activity monitor": "Activity Monitor",
-                            "terminal": "Terminal",
-                            "system preferences": "System Preferences",
-                            "settings": "System Settings",
-                            "finder": "Finder",
-                            "notes": "Notes",
-                            "calendar": "Calendar",
-                            "mail": "Mail",
-                            "messages": "Messages",
-                            "photos": "Photos",
-                            "preview": "Preview",
-                            "calculator": "Calculator"
-                        }
-                        
-                        # Extract app name
-                        app_name = None
-                        for known_app, macos_name in app_map.items():
-                            if known_app in part:
-                                app_name = macos_name
-                                break
-                                
-                        if not app_name:
-                            # Try to capitalize the app name as a fallback
-                            words = part.replace("open", "").strip().split()
-                            app_name = " ".join(word.capitalize() for word in words)
-                        
-                        # Use ComputerTool for application commands
-                        tool = next(
-                            (t for t in self.tools if not isinstance(t, BashTool)), 
-                            None
-                        )
-                        if not tool:
-                            return ToolResult(error="No ComputerTool available")
-                            
-                        results.append(await tool(action="open_app", text=app_name))
-                        
-                    elif "screenshot" in part:
-                        # Use ComputerTool for screenshots
-                        tool = next(
-                            (t for t in self.tools if not isinstance(t, BashTool)), 
-                            None
-                        )
-                        if not tool:
-                            return ToolResult(error="No ComputerTool available")
-                        results.append(await tool(action="screenshot"))
-                        
-                    else:
-                        # Use BashTool for raw commands
-                        tool = next(
-                            (t for t in self.tools if isinstance(t, BashTool)), 
-                            None
-                        )
-                        if not tool:
-                            return ToolResult(error="No BashTool available")
-                        results.append(await tool(command=part))
-                
-                # Combine results
-                final_result = ToolResult(output="", error="")
-                for result in results:
-                    if result.error:
-                        if final_result.error:
-                            final_result = final_result.replace(
-                                error=final_result.error + "\n" + result.error
-                            )
-                        else:
-                            final_result = final_result.replace(error=result.error)
-                    if result.output:
-                        if final_result.output:
-                            final_result = final_result.replace(
-                                output=final_result.output + "\n" + result.output
-                            )
-                        else:
-                            final_result = final_result.replace(output=result.output)
-                    if result.base64_image:
-                        final_result = final_result.replace(
-                            base64_image=result.base64_image
-                        )
-                return final_result
-                
-            else:
-                # Use ComputerTool for actions
-                tool = next(
-                    (t for t in self.tools if not isinstance(t, BashTool)), 
-                    None
-                )
-                if not tool:
-                    return ToolResult(
-                        error="No ComputerTool available for action"
-                    )
-                return await tool(**kwargs)
-            
-        except ToolError as e:
-            return ToolResult(output=None, error=str(e))
         except Exception as e:
-            return ToolResult(
-                output=None,
-                error=f"Unexpected error: {str(e)}"
+            logger.error(f"Tool collection initialization failed: {e}")
+            raise
+            
+    async def execute(self, 
+                     tool_name: str,
+                     command: str,
+                     **kwargs) -> ToolResult:
+        """Execute tool command with error handling and caching"""
+        try:
+            tool = self.registry.get_tool(tool_name)
+            
+            # Check cache if enabled
+            if self.config.cache_enabled:
+                cache_key = f"{tool_name}:{command}:{str(kwargs)}"
+                cached_result = await self.cache.get(cache_key)
+                if cached_result:
+                    return cached_result
+                    
+            # Execute tool
+            result = await tool.execute(command, **kwargs)
+            
+            # Cache successful result
+            if result.success and self.config.cache_enabled:
+                await self.cache.set(cache_key, result)
+                
+            return result
+            
+        except Exception as e:
+            # Handle error
+            context = self.error_handler.handle_error(
+                e, tool_name, command, **kwargs
             )
+            return ToolResult(
+                success=False,
+                error=str(e),
+                metadata={"error_context": context}
+            )
+            
+    async def cleanup(self):
+        """Cleanup all tools"""
+        for tool_name in self.registry.list_tools():
+            tool = self.registry.get_tool(tool_name)
+            await tool.cleanup()

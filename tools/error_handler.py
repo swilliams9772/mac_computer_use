@@ -1,36 +1,63 @@
-from typing import Optional, Dict
-from anthropic.types import APIError
+from typing import Optional, Dict, Any, List
+import traceback
 import logging
-import asyncio
+from dataclasses import dataclass
+from datetime import datetime
 
-class APIErrorHandler:
-    """Handles Anthropic API errors with retry logic"""
+logger = logging.getLogger(__name__)
+
+@dataclass
+class ErrorContext:
+    """Error context information"""
+    timestamp: datetime
+    tool_name: str
+    command: str
+    args: Dict[str, Any]
+    traceback: str
     
-    ERROR_MESSAGES = {
-        "rate_limit_error": "Rate limit exceeded. Waiting before retry...",
-        "invalid_request_error": "Invalid request parameters",
-        "authentication_error": "API key authentication failed",
-        "permission_error": "Insufficient permissions for this operation",
-        "not_found_error": "Requested resource not found",
-        "server_error": "Anthropic API server error"
-    }
+class ErrorHandler:
+    """Centralized error handling"""
     
-    @staticmethod
-    async def handle_error(error: APIError) -> Optional[Dict]:
-        """Handle different types of API errors"""
-        error_type = error.type
+    def __init__(self):
+        self.error_history: List[ErrorContext] = []
         
-        if error_type == "rate_limit_error":
-            # Implement exponential backoff
-            await asyncio.sleep(error.retry_after or 1)
-            return {"should_retry": True, "wait_time": error.retry_after}
+    def handle_error(self, 
+                    error: Exception,
+                    tool_name: str,
+                    command: str,
+                    **kwargs) -> ErrorContext:
+        """Handle and log tool errors"""
+        context = ErrorContext(
+            timestamp=datetime.now(),
+            tool_name=tool_name,
+            command=command,
+            args=kwargs,
+            traceback=traceback.format_exc()
+        )
+        
+        # Log error
+        logger.error(
+            f"Tool error in {tool_name}\n"
+            f"Command: {command}\n"
+            f"Args: {kwargs}\n"
+            f"Error: {str(error)}\n"
+            f"Traceback:\n{context.traceback}"
+        )
+        
+        # Store in history
+        self.error_history.append(context)
+        return context
+        
+    def get_error_history(self, 
+                         tool_name: Optional[str] = None,
+                         limit: Optional[int] = None) -> List[ErrorContext]:
+        """Get error history with optional filtering"""
+        history = self.error_history
+        
+        if tool_name:
+            history = [e for e in history if e.tool_name == tool_name]
             
-        elif error_type == "server_error":
-            # Log server errors
-            logging.error(f"Anthropic API server error: {error.message}")
-            return {"should_retry": True, "wait_time": 5}
+        if limit:
+            history = history[-limit:]
             
-        else:
-            # Log other errors
-            logging.error(f"API error: {error.type} - {error.message}")
-            return {"should_retry": False, "error": error.message} 
+        return history 
