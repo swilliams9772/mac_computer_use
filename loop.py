@@ -23,6 +23,7 @@ from anthropic.types.beta import (
 )
 
 from tools import BashTool, ComputerTool, EditTool, ToolCollection, ToolResult, WebSearchTool
+from context_manager import apply_mcp, ConversationManager
 
 # Beta flag for Claude 3.5 Sonnet
 BETA_FLAG = "computer-use-2024-10-22"
@@ -124,6 +125,7 @@ async def sampling_loop(
     max_tokens: int = 4096,
     enable_thinking: bool = False,
     search_engine: str = "duckduckgo",
+    enable_mcp: bool = False,
 ):
     """
     Run a sampling loop that calls the Anthropic API and processes the response.
@@ -142,8 +144,13 @@ async def sampling_loop(
         max_tokens: Maximum number of tokens to generate.
         enable_thinking: Whether to enable the "thinking" beta feature.
         search_engine: The search engine to use for web searches (duckduckgo, google, bing).
+        enable_mcp: Whether to enable Model Context Pruning.
     """
     try:
+        # Apply Model Context Pruning if enabled
+        if enable_mcp:
+            messages = apply_mcp(messages)
+            
         # Filter messages to only include the most recent images
         if only_n_most_recent_images:
             _maybe_filter_to_n_most_recent_images(
@@ -226,8 +233,8 @@ async def sampling_loop(
                     "name": "str_replace_editor"
                 },
                 {
-                    "type": "function",
-                    "function": web_search_tool.to_params()["function"]
+                    "type": "custom",
+                    **web_search_tool.to_params()
                 }
             ]
         else:
@@ -249,8 +256,8 @@ async def sampling_loop(
                     "name": "str_replace_editor"
                 },
                 {
-                    "type": "function",
-                    "function": web_search_tool.to_params()["function"]
+                    "type": "custom",
+                    **web_search_tool.to_params()
                 }
             ]
         

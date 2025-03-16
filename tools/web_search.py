@@ -169,24 +169,21 @@ class WebSearchTool(BaseAnthropicTool):
     def to_params(self):
         """Return the tool parameters for API calls."""
         return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": "Search the web for information to answer questions about current events, facts, or any other topic.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "search_query": {
-                            "type": "string", 
-                            "description": "The search query to look up on the web"
-                        },
-                        "num_results": {
-                            "type": "integer",
-                            "description": "Number of results to return (max 10)",
-                            "default": 5,
-                        }
+            "name": self.name,
+            "description": "Search the web for information to answer questions about current events, facts, or any other topic.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "search_query": {
+                        "type": "string", 
+                        "description": "The search query to look up on the web"
                     },
-                    "required": ["search_query"]
-                }
+                    "num_results": {
+                        "type": "integer",
+                        "description": "Number of results to return (max 10)",
+                        "default": 5,
+                    }
+                },
+                "required": ["search_query"]
             }
         } 

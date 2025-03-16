@@ -91,6 +91,12 @@ def setup_state():
         st.session_state.hide_images = False
     if "enable_thinking" not in st.session_state:
         st.session_state.enable_thinking = False
+    if "search_engine" not in st.session_state:
+        st.session_state.search_engine = "duckduckgo"
+    if "thinking" not in st.session_state:
+        st.session_state.thinking = True
+    if "enable_mcp" not in st.session_state:
+        st.session_state.enable_mcp = False
 
 
 def _reset_model():
@@ -133,9 +139,8 @@ async def main():
     st.set_page_config(page_title="Claude Computer Use", page_icon="🧠", layout="wide")
     st.markdown(STREAMLIT_STYLE, unsafe_allow_html=True)
 
-    # Initialize session state for messages if not present
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
+    # Initialize all session state variables
+    setup_state()
 
     # Render the sidebar and get settings
     _render_sidebar()
@@ -260,6 +265,7 @@ async def main():
                     max_tokens=4096,
                     enable_thinking=enable_thinking,
                     search_engine=search_engine,
+                    enable_mcp=st.session_state.get("enable_mcp", False),
                 )
 
                 # Add assistant response to chat history
@@ -432,16 +438,16 @@ def _render_sidebar():
     """Render the sidebar with options to configure the assistant."""
     st.sidebar.title("Settings")
 
+    # Initialize provider from session state if present
+    current_provider = st.session_state.get("provider", "anthropic")
+    
+    # Create provider selectbox
     provider = st.sidebar.selectbox(
         "API Provider",
         ["anthropic", "bedrock", "vertex"],
-        index=0,
+        index=["anthropic", "bedrock", "vertex"].index(current_provider),
         key="provider",
     )
-
-    # Initialize session state for model if not present
-    if "model" not in st.session_state:
-        st.session_state.model = PROVIDER_TO_DEFAULT_MODEL_NAME[APIProvider(provider)]
 
     # Filter models based on provider
     if provider == "anthropic":
@@ -451,12 +457,19 @@ def _render_sidebar():
     else:  # vertex
         models = ["claude-3-5-sonnet-v2@20241022", "claude-3-7-sonnet@20250224"]
 
+    # Get current model from session state
+    current_model = st.session_state.get("model", PROVIDER_TO_DEFAULT_MODEL_NAME[APIProvider(provider)])
+    
     # Replace if selected model is not valid for provider
-    if st.session_state.model not in models:
-        st.session_state.model = PROVIDER_TO_DEFAULT_MODEL_NAME[APIProvider(provider)]
+    if current_model not in models:
+        current_model = PROVIDER_TO_DEFAULT_MODEL_NAME[APIProvider(provider)]
+        st.session_state.model = current_model
 
-    selected_model = st.sidebar.selectbox(
-        "Model", models, index=models.index(st.session_state.model), key="model"
+    # Create model selectbox
+    st.sidebar.selectbox(
+        "Model", models, 
+        index=models.index(current_model), 
+        key="model"
     )
 
     with st.sidebar.expander("API Keys", expanded=False):
@@ -464,82 +477,92 @@ def _render_sidebar():
             "Enter your API keys below. These will be stored in session state and not logged."
         )
         if provider == "anthropic":
-            st.session_state.anthropic_api_key = st.text_input(
+            st.text_input(
                 "Anthropic API Key",
                 type="password",
                 value=st.session_state.get("anthropic_api_key", os.getenv("ANTHROPIC_API_KEY", "")),
-                key="anthropic_api_key_input",
+                key="anthropic_api_key",
             )
         elif provider == "bedrock":
-            st.session_state.aws_access_key_id = st.text_input(
+            st.text_input(
                 "AWS Access Key ID",
                 type="password",
                 value=st.session_state.get("aws_access_key_id", os.getenv("AWS_ACCESS_KEY_ID", "")),
-                key="aws_access_key_id_input",
+                key="aws_access_key_id",
             )
-            st.session_state.aws_secret_access_key = st.text_input(
+            st.text_input(
                 "AWS Secret Access Key",
                 type="password",
                 value=st.session_state.get("aws_secret_access_key", os.getenv("AWS_SECRET_ACCESS_KEY", "")),
-                key="aws_secret_access_key_input",
+                key="aws_secret_access_key",
             )
         elif provider == "vertex":
-            st.session_state.google_api_key = st.text_input(
+            st.text_input(
                 "Google API Key",
                 type="password",
                 value=st.session_state.get("google_api_key", os.getenv("GOOGLE_API_KEY", "")),
-                key="google_api_key_input",
+                key="google_api_key",
             )
 
     with st.sidebar.expander("Web Search API Keys", expanded=False):
         st.info(
             "Enter your search engine API keys below. DuckDuckGo works without keys but has limited results."
         )
-        st.session_state.search_engine = st.selectbox(
+        
+        # Get current search engine from session state
+        current_search_engine = st.session_state.get("search_engine", "duckduckgo")
+        
+        # Create search engine selectbox
+        st.selectbox(
             "Search Engine",
             ["duckduckgo", "google", "bing"],
-            index=0,
+            index=["duckduckgo", "google", "bing"].index(current_search_engine),
             key="search_engine",
         )
         
         if st.session_state.search_engine == "google":
-            st.session_state.google_search_api_key = st.text_input(
+            st.text_input(
                 "Google Search API Key",
                 type="password",
                 value=st.session_state.get("google_search_api_key", os.getenv("GOOGLE_API_KEY", "")),
-                key="google_search_api_key_input",
+                key="google_search_api_key",
             )
-            st.session_state.google_cx_id = st.text_input(
+            st.text_input(
                 "Google Custom Search CX ID",
                 type="password",
                 value=st.session_state.get("google_cx_id", os.getenv("GOOGLE_CX_ID", "")),
-                key="google_cx_id_input",
+                key="google_cx_id",
             )
             # Update environment variables for web search tool
             os.environ["GOOGLE_API_KEY"] = st.session_state.google_search_api_key
             os.environ["GOOGLE_CX_ID"] = st.session_state.google_cx_id
             
         elif st.session_state.search_engine == "bing":
-            st.session_state.bing_api_key = st.text_input(
+            st.text_input(
                 "Bing API Key",
                 type="password",
                 value=st.session_state.get("bing_api_key", os.getenv("BING_API_KEY", "")),
-                key="bing_api_key_input",
+                key="bing_api_key",
             )
             # Update environment variable for web search tool
             os.environ["BING_API_KEY"] = st.session_state.bing_api_key
 
     with st.sidebar.expander("Advanced Options", expanded=False):
-        st.session_state.thinking = st.toggle(
+        st.toggle(
             "Enable Thinking",
             value=st.session_state.get("thinking", True),
-            key="thinking_toggle",
+            key="thinking",
         )
         st.markdown("*Note: Thinking is only available with Claude 3.7 Sonnet models.*")
+        
+        st.toggle(
+            "Enable Model Context Pruning (MCP)",
+            value=st.session_state.get("enable_mcp", False),
+            key="enable_mcp",
+            help="Automatically summarize and prune conversation history to manage context length."
+        )
 
     st.sidebar.divider()
-    
-    st.session_state.provider = provider
     
     if st.sidebar.button("Clear Chat History"):
         st.session_state.messages = []
