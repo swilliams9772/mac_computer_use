@@ -24,8 +24,18 @@ from anthropic.types.beta import (
 
 from tools import BashTool, ComputerTool, EditTool, ToolCollection, ToolResult
 
+# Beta flag for Claude 3.5 Sonnet
 BETA_FLAG = "computer-use-2024-10-22"
 
+# Tool types for Claude 3.5
+COMPUTER_TOOL_2024 = "computer_20241022"
+BASH_TOOL_2024 = "bash_20241022"
+TEXT_EDITOR_TOOL_2024 = "text_editor_20241022"
+
+# Tool types for Claude 3.7
+COMPUTER_TOOL_2025 = "computer_20250124"  # This is not supported by Claude 3.7 based on the error
+BASH_TOOL_2025 = "bash_20250124"
+TEXT_EDITOR_TOOL_2025 = "text_editor_20250124"
 
 class APIProvider(StrEnum):
     ANTHROPIC = "anthropic"
@@ -39,6 +49,10 @@ PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
     APIProvider.VERTEX: "claude-3-5-sonnet-v2@20241022",
 }
 
+# Claude 3.7 Sonnet model names
+CLAUDE_3_7_SONNET = "claude-3-7-sonnet-20250219"
+CLAUDE_3_7_SONNET_BEDROCK = "anthropic.claude-3-7-sonnet-20250219-v1:0"
+CLAUDE_3_7_SONNET_VERTEX = "claude-3-7-sonnet-v1@20250219"
 
 # This system prompt is optimized for the Docker environment in this repository and
 # specific tool combinations enabled.
@@ -104,75 +118,133 @@ async def sampling_loop(
     output_callback: Callable[[BetaContentBlock], None],
     tool_output_callback: Callable[[ToolResult, str], None],
     api_response_callback: Callable[[APIResponse[BetaMessage]], None],
+    error_callback: Callable[[Exception], None] = None,
     api_key: str,
     only_n_most_recent_images: int | None = None,
     max_tokens: int = 4096,
+    enable_thinking: bool = False,
 ):
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
     """
+    # Initialize tool collection
     tool_collection = ToolCollection(
         ComputerTool(),
         BashTool(),
         EditTool(),
     )
+    
+    # Set system prompt
     system = (
         f"{SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}"
     )
+    
+    # Check if using Claude 3.7 Sonnet (which requires different tool types)
+    is_claude_3_7 = model in [CLAUDE_3_7_SONNET, CLAUDE_3_7_SONNET_BEDROCK, CLAUDE_3_7_SONNET_VERTEX]
 
     while True:
-        if only_n_most_recent_images:
-            _maybe_filter_to_n_most_recent_images(messages, only_n_most_recent_images)
+        try:
+            if only_n_most_recent_images:
+                _maybe_filter_to_n_most_recent_images(messages, only_n_most_recent_images)
 
-        if provider == APIProvider.ANTHROPIC:
-            client = Anthropic(api_key=api_key)
-        elif provider == APIProvider.VERTEX:
-            client = AnthropicVertex()
-        elif provider == APIProvider.BEDROCK:
-            client = AnthropicBedrock()
+            if provider == APIProvider.ANTHROPIC:
+                client = Anthropic(api_key=api_key)
+            elif provider == APIProvider.VERTEX:
+                client = AnthropicVertex()
+            elif provider == APIProvider.BEDROCK:
+                client = AnthropicBedrock()
+            else:
+                raise ValueError(f"Unsupported API provider: {provider}")
 
-        # Call the API
-        # we use raw_response to provide debug information to streamlit. Your
-        # implementation may be able call the SDK directly with:
-        # `response = client.messages.create(...)` instead.
-        raw_response = client.beta.messages.with_raw_response.create(
-            max_tokens=max_tokens,
-            messages=messages,
-            model=model,
-            system=system,
-            tools=tool_collection.to_params(),
-            betas=[BETA_FLAG],
-        )
-
-        api_response_callback(cast(APIResponse[BetaMessage], raw_response))
-
-        response = raw_response.parse()
-
-        messages.append(
-            {
-                "role": "assistant",
-                "content": cast(list[BetaContentBlockParam], response.content),
+            # Create base API params
+            api_params = {
+                "max_tokens": max_tokens,
+                "messages": messages,
+                "model": model,
+                "system": system,
             }
-        )
+            
+            # Set the appropriate beta flag and tool configuration based on model
+            if is_claude_3_7:
+                # For Claude 3.7, don't use beta flags but use the 2025 tool types
+                # api_params["betas"] = [BETA_FLAG_2025]  # Removing this line as it's causing the error
+                
+                # Configure tools with 2025 type identifiers
+                api_params["tools"] = [
+                    # Removing this as it's not supported for Claude 3.7 Sonnet
+                    # {
+                    #    "type": COMPUTER_TOOL_2025,
+                    #    "name": "computer"
+                    # },
+                    {
+                        "type": BASH_TOOL_2025,
+                        "name": "bash"
+                    },
+                    {
+                        "type": TEXT_EDITOR_TOOL_2025,
+                        "name": "str_replace_editor"
+                    }
+                ]
+            else:
+                # For Claude 3.5, use 2024 beta flag and standard tool collection
+                api_params["betas"] = [BETA_FLAG]
+                api_params["tools"] = tool_collection.to_params()
+            
+            # Add thinking parameter if it's Claude 3.7 Sonnet and thinking is enabled
+            if enable_thinking and is_claude_3_7:
+                # Set the thinking parameter with a budget based on AWS documentation
+                thinking_budget = max(1024, max_tokens // 2)  # Use half of max_tokens as thinking budget
+                api_params["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": thinking_budget
+                }
+                
+            raw_response = client.beta.messages.with_raw_response.create(**api_params)
 
-        tool_result_content: list[BetaToolResultBlockParam] = []
-        for content_block in cast(list[BetaContentBlock], response.content):
-            print("CONTENT", content_block)
-            output_callback(content_block)
-            if content_block.type == "tool_use":
-                result = await tool_collection.run(
-                    name=content_block.name,
-                    tool_input=cast(dict[str, Any], content_block.input),
-                )
-                tool_result_content.append(
-                    _make_api_tool_result(result, content_block.id)
-                )
-                tool_output_callback(result, content_block.id)
+            api_response_callback(cast(APIResponse[BetaMessage], raw_response))
 
-        if not tool_result_content:
+            response = raw_response.parse()
+
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": cast(list[BetaContentBlockParam], response.content),
+                }
+            )
+
+            tool_result_content: list[BetaToolResultBlockParam] = []
+            for content_block in cast(list[BetaContentBlock], response.content):
+                print("CONTENT", content_block)
+                output_callback(content_block)
+                if content_block.type == "tool_use":
+                    try:
+                        result = await tool_collection.run(
+                            name=content_block.name,
+                            tool_input=cast(dict[str, Any], content_block.input),
+                        )
+                    except Exception as e:
+                        # Handle tool execution errors
+                        result = ToolResult(
+                            error=f"Error executing tool {content_block.name}: {str(e)}",
+                            system="Tool execution failed due to an internal error."
+                        )
+                    
+                    tool_result_content.append(
+                        _make_api_tool_result(result, content_block.id)
+                    )
+                    tool_output_callback(result, content_block.id)
+
+            if not tool_result_content:
+                return messages
+
+            messages.append({"content": tool_result_content, "role": "user"})
+            
+        except Exception as e:
+            print(f"Error in sampling loop: {str(e)}")
+            if error_callback:
+                error_callback(e)
+            # Return current messages to avoid losing conversation history
             return messages
-
-        messages.append({"content": tool_result_content, "role": "user"})
 
 
 def _maybe_filter_to_n_most_recent_images(

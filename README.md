@@ -12,9 +12,13 @@
 - Screen capture using native macOS commands
 - Keyboard and mouse control through cliclick
 - Multiple LLM provider support (Anthropic, Bedrock, Vertex)
-- Streamlit-based interface
+- Support for Claude 3.5 Sonnet and Claude 3.7 Sonnet models
+- Claude 3.7 Sonnet "thinking" mode for more thorough reasoning
+- Streamlit-based interface with enhanced user experience
 - Automatic screen resolution scaling
 - File system interaction and editing capabilities
+- Robust error handling and user feedback
+- Visual progress indicators for thinking processes
 
 ## Prerequisites
 
@@ -52,6 +56,14 @@ chmod +x setup.sh
 pip install -r requirements.txt
 ```
 
+5. Verify your environment setup:
+
+```bash
+python verify_env.py
+```
+
+This script checks that all required dependencies are correctly installed and configured before running the application.
+
 ## Running the Demo
 
 ### Set up your environment and Anthropic API key
@@ -75,6 +87,78 @@ streamlit run streamlit.py
 ```
 
 The interface will be available at http://localhost:8501
+
+## Using Claude 3.7 Sonnet with Thinking
+
+This fork now supports Claude 3.7 Sonnet with its "thinking" capabilities. When enabled, Claude will show its step-by-step reasoning process, providing transparency into how it arrives at its responses. This can be particularly helpful for complex tasks.
+
+To use this feature:
+
+1. Select "Claude 3.7 Sonnet" from the model dropdown in the sidebar
+2. Enable the "Enable Thinking" checkbox
+3. Start chatting with Claude
+
+The application will automatically allocate a token budget for thinking (approximately half of the max_tokens setting). The thinking feature helps Claude perform complex tasks by allowing it to work through problems step-by-step, resulting in more accurate and reliable task execution.
+
+### Production-Ready Features
+
+This application includes several production-ready features:
+
+- **Comprehensive Error Handling**: The application catches and handles errors gracefully, providing clear feedback to users
+- **Visual Progress Indicators**: When using the thinking feature, a progress bar shows the thinking process
+- **Intuitive UI**: Clear indicators show which models support the thinking feature
+- **Automatic Token Budget Management**: The application automatically allocates an appropriate thinking budget
+- **Support for Multiple API Providers**: Works with Anthropic, AWS Bedrock, and Google Vertex AI
+- **Detailed Error Messages**: User-friendly error descriptions with specific troubleshooting instructions
+
+### Troubleshooting
+
+If you encounter errors:
+
+1. **Thinking Parameter Issues**: Make sure you have the latest Anthropic SDK (v0.49.0+) and application code
+```bash
+pip install --upgrade "anthropic[bedrock,vertex]>=0.49.0"
+```
+
+   According to the latest AWS documentation, the thinking parameter for Claude 3.7 Sonnet should use the following format:
+   
+   ```json
+   "thinking": {
+       "type": "enabled",
+       "budget_tokens": 16000
+   }
+   ```
+   
+   If you see errors about "thinking: Input tag does not match any of the expected tags", make sure you're using the latest version of the application that uses the correct parameter format.
+
+2. **Tool Type Compatibility**: Claude 3.7 Sonnet requires newer tool types than Claude 3.5 Sonnet.
+   
+   For Claude 3.5 Sonnet, use:
+   ```
+   computer_20241022
+   bash_20241022
+   text_editor_20241022
+   ```
+   
+   For Claude 3.7 Sonnet, use:
+   ```
+   bash_20250124
+   text_editor_20250124
+   ```
+   
+   **Note**: Unlike Claude 3.5 Sonnet, Claude 3.7 Sonnet does **not** support the `computer_20250124` tool type.
+   
+   The application now automatically selects the correct tool types based on the model you choose.
+
+3. **Beta Flag Compatibility**: Claude 3.7 Sonnet does not require the beta flag that Claude 3.5 Sonnet needs.
+   
+   If you see an error like: `Unexpected value(s) for the anthropic-beta header`, the application has been updated to not send beta flags to Claude 3.7 Sonnet models.
+
+4. **API Key Errors**: Verify your API key is correct in the sidebar or .env file
+
+5. **Model Availability**: Ensure you've selected an available model for your API provider
+
+6. **Rate Limiting**: If you encounter rate limit errors, wait a few moments before retrying
 
 ## Screen Size Considerations
 

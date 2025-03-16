@@ -11,6 +11,7 @@ from enum import StrEnum
 from functools import partial
 from pathlib import PosixPath
 from typing import cast
+import time
 
 import streamlit as st
 from anthropic import APIResponse
@@ -25,6 +26,9 @@ from loop import (
     PROVIDER_TO_DEFAULT_MODEL_NAME,
     APIProvider,
     sampling_loop,
+    CLAUDE_3_7_SONNET,
+    CLAUDE_3_7_SONNET_BEDROCK,
+    CLAUDE_3_7_SONNET_VERTEX,
 )
 from tools import ToolResult
 from dotenv import load_dotenv
@@ -85,12 +89,43 @@ def setup_state():
         st.session_state.custom_system_prompt = load_from_storage("system_prompt") or ""
     if "hide_images" not in st.session_state:
         st.session_state.hide_images = False
+    if "enable_thinking" not in st.session_state:
+        st.session_state.enable_thinking = False
 
 
 def _reset_model():
     st.session_state.model = PROVIDER_TO_DEFAULT_MODEL_NAME[
         cast(APIProvider, st.session_state.provider)
     ]
+
+
+def get_model_options(provider: APIProvider) -> list[str]:
+    """Return available models for the selected provider"""
+    if provider == APIProvider.ANTHROPIC:
+        return [
+            PROVIDER_TO_DEFAULT_MODEL_NAME[provider],
+            CLAUDE_3_7_SONNET
+        ]
+    elif provider == APIProvider.BEDROCK:
+        return [
+            PROVIDER_TO_DEFAULT_MODEL_NAME[provider],
+            CLAUDE_3_7_SONNET_BEDROCK
+        ]
+    elif provider == APIProvider.VERTEX:
+        return [
+            PROVIDER_TO_DEFAULT_MODEL_NAME[provider],
+            CLAUDE_3_7_SONNET_VERTEX
+        ]
+    return [PROVIDER_TO_DEFAULT_MODEL_NAME[provider]]
+
+
+def get_model_display_name(model_id: str) -> str:
+    """Return a user-friendly display name for the model"""
+    if model_id in [CLAUDE_3_7_SONNET, CLAUDE_3_7_SONNET_BEDROCK, CLAUDE_3_7_SONNET_VERTEX]:
+        return "Claude 3.7 Sonnet (with thinking capability)"
+    elif "claude-3-5" in model_id.lower():
+        return "Claude 3.5 Sonnet"
+    return model_id
 
 
 async def main():
@@ -120,7 +155,37 @@ async def main():
             on_change=_reset_api_provider,
         )
 
-        st.text_input("Model", key="model")
+        # Replace text input with selectbox for model selection
+        model_options = get_model_options(cast(APIProvider, st.session_state.provider))
+        st.selectbox(
+            "Model",
+            options=model_options,
+            key="model",
+            format_func=get_model_display_name
+        )
+        
+        # Add checkbox for thinking feature (only for Claude 3.7)
+        is_claude_3_7 = st.session_state.model in [
+            CLAUDE_3_7_SONNET, 
+            CLAUDE_3_7_SONNET_BEDROCK, 
+            CLAUDE_3_7_SONNET_VERTEX
+        ]
+        
+        thinking_col1, thinking_col2 = st.columns([3, 1])
+        with thinking_col1:
+            st.checkbox(
+                "Enable Thinking", 
+                key="enable_thinking",
+                disabled=not is_claude_3_7
+            )
+        with thinking_col2:
+            if is_claude_3_7:
+                st.info("✓")
+            else:
+                st.info("✗")
+                
+        if is_claude_3_7:
+            st.info("Claude 3.7's thinking capability allows for step-by-step reasoning, producing more thorough and accurate responses.")
 
         if st.session_state.provider == APIProvider.ANTHROPIC:
             st.text_input(
@@ -227,8 +292,10 @@ async def main():
                     tab=http_logs,
                     response_state=st.session_state.responses,
                 ),
+                error_callback=_display_error,
                 api_key=st.session_state.api_key,
                 only_n_most_recent_images=st.session_state.only_n_most_recent_images,
+                enable_thinking=st.session_state.enable_thinking,
             )
 
 
@@ -355,6 +422,36 @@ def _render_message(
         else:
             st.markdown(message)
 
+
+def _display_error(error: Exception):
+    """Display error messages to the user in a friendly way."""
+    error_msg = str(error)
+    if "thinking.type: Field required" in error_msg:
+        st.error("Error: There was an issue with the thinking feature. Try upgrading the Anthropic SDK to the latest version.")
+    elif "thinking: Input tag" in error_msg and "does not match any of the expected tags" in error_msg:
+        st.error("Error: Invalid thinking parameter format. This has been fixed in the latest version of the application.")
+        st.info("Please restart the application to apply the fix.")
+    elif "does not support tool types:" in error_msg and "Did you mean one of" in error_msg:
+        st.error("Error: Claude 3.7 Sonnet requires newer tool types than what's currently configured.")
+        st.info("This has been fixed in the latest version of the application. Please restart the application to apply the fix.")
+    elif "Input tag 'computer_20250124' found using 'type' does not match any of the expected tags" in error_msg:
+        st.error("Error: Claude 3.7 Sonnet does not support the 'computer_20250124' tool type.")
+        st.info("This has been fixed in the latest version. Please restart the application to apply the fix.")
+    elif "Unexpected value(s)" in error_msg and "for the anthropic-beta header" in error_msg:
+        st.error("Error: Invalid beta flag for this model version.")
+        st.info("This has been fixed in the latest version of the application. Please restart the application to apply the fix.")
+    elif "invalid_api_key" in error_msg:
+        st.error("Error: Invalid API key. Please check your API key in the sidebar.")
+    elif "rate_limit_exceeded" in error_msg:
+        st.error("Error: Rate limit exceeded. Please wait a moment and try again.")
+    elif "model_not_available" in error_msg or "model_not_found" in error_msg:
+        st.error(f"Error: The selected model ({st.session_state.model}) is not available. Please select a different model.")
+    else:
+        st.error(f"An error occurred: {error_msg}")
+    
+    # Log detailed error for debugging
+    print(f"Error details: {error}")
+    
 
 if __name__ == "__main__":
     asyncio.run(main())
