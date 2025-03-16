@@ -19,6 +19,15 @@
 - File system interaction and editing capabilities
 - Robust error handling and user feedback
 - Visual progress indicators for thinking processes
+- **Support for Multiple Anthropic API Providers**: Works with Anthropic's API, Amazon Bedrock, and Google Vertex AI.
+- **Conversation History**: See your complete chat history with the AI in a clean interface.
+- **Tool Use**: Claude uses various tools to help you:
+  - **Computer Tool**: Let Claude control your computer with simulated mouse and keyboard actions
+  - **Bash Tool**: Run shell commands on your system
+  - **Text Editor Tool**: Edit files or create new ones
+  - **Web Search Tool**: Search the internet for current information and facts
+- **Visual Thinking**: See Claude's step-by-step reasoning process with the thinking feature (Claude 3.7 Sonnet only)
+- **Cross-Platform**: Works on macOS, Linux, and Windows.
 
 ## Prerequisites
 
@@ -178,3 +187,53 @@ streamlit run streamlit.py
 
 > [!IMPORTANT]
 > The Beta API used in this reference implementation is subject to change. Please refer to the [API release notes](https://docs.anthropic.com/en/release-notes/api) for the most up-to-date information.
+
+## Configuration
+
+The following environment variables can be set (in a `.env` file or via the Streamlit UI):
+
+- `ANTHROPIC_API_KEY`: Your Anthropic API key
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`: For Amazon Bedrock
+- `GOOGLE_APPLICATION_CREDENTIALS`: For Google Vertex AI
+- `GOOGLE_API_KEY` and `GOOGLE_CX_ID`: For Google Custom Search API (web search tool)
+- `BING_API_KEY`: For Bing Search API (web search tool)
+
+Or you can input these credentials in the sidebar of the Streamlit app.
+
+## Troubleshooting
+
+If you encounter issues, try these steps:
+
+1. **Thinking Parameter Issues**: Ensure you have Anthropic SDK v0.49.0+ and use the correct format for the thinking parameter for Claude 3.7 Sonnet.
+
+2. **Tool Type Compatibility**: Claude 3.7 Sonnet requires newer tool types than Claude 3.5 Sonnet.
+   
+   For Claude 3.5 Sonnet, use:
+   ```
+   computer_20241022
+   bash_20241022
+   text_editor_20241022
+   ```
+   
+   For Claude 3.7 Sonnet, use:
+   ```
+   bash_20250124
+   text_editor_20250124
+   ```
+   
+   **Note**: Unlike Claude 3.5 Sonnet, Claude 3.7 Sonnet does **not** support the `computer_20250124` tool type.
+   
+   The application now automatically selects the correct tool types based on the model you choose.
+
+3. **Beta Flag Compatibility**: Claude 3.7 Sonnet does not require a beta flag to be set. You should not see errors related to the "anthropic-beta" header.
+
+4. **Web Search Issues**: If the web search tool fails, check if you've set the appropriate API keys for your chosen search engine in the `.env` file or the sidebar:
+   - For Google search: `GOOGLE_API_KEY` and `GOOGLE_CX_ID`
+   - For Bing search: `BING_API_KEY`
+   - DuckDuckGo search works without API keys but has limited results
+
+5. **API Key Errors**: Verify that you've entered your API key in the sidebar or the `.env` file.
+
+6. **Model Availability**: Ensure the model you've selected is available for your API provider.
+
+7. **Rate Limiting**: If you encounter rate limit errors, wait a bit before retrying.

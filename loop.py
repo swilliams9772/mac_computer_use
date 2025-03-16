@@ -22,7 +22,7 @@ from anthropic.types.beta import (
     BetaToolResultBlockParam,
 )
 
-from tools import BashTool, ComputerTool, EditTool, ToolCollection, ToolResult
+from tools import BashTool, ComputerTool, EditTool, ToolCollection, ToolResult, WebSearchTool
 
 # Beta flag for Claude 3.5 Sonnet
 BETA_FLAG = "computer-use-2024-10-22"
@@ -123,128 +123,176 @@ async def sampling_loop(
     only_n_most_recent_images: int | None = None,
     max_tokens: int = 4096,
     enable_thinking: bool = False,
+    search_engine: str = "duckduckgo",
 ):
     """
-    Agentic sampling loop for the assistant/tool interaction of computer use.
+    Run a sampling loop that calls the Anthropic API and processes the response.
+    
+    Args:
+        model: The model to use (e.g. "claude-3-opus").
+        provider: The API provider to use (e.g. "anthropic").
+        system_prompt_suffix: Additional text to append to the system prompt.
+        messages: The messages to send to the API.
+        output_callback: Called for each content block received from the API.
+        tool_output_callback: Called for each tool result.
+        api_response_callback: Called for each API response.
+        error_callback: Called for errors.
+        api_key: The API key to use.
+        only_n_most_recent_images: Only keep this many most recent images.
+        max_tokens: Maximum number of tokens to generate.
+        enable_thinking: Whether to enable the "thinking" beta feature.
+        search_engine: The search engine to use for web searches (duckduckgo, google, bing).
     """
-    # Initialize tool collection
-    tool_collection = ToolCollection(
-        ComputerTool(),
-        BashTool(),
-        EditTool(),
-    )
-    
-    # Set system prompt
-    system = (
-        f"{SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}"
-    )
-    
-    # Check if using Claude 3.7 Sonnet (which requires different tool types)
-    is_claude_3_7 = model in [CLAUDE_3_7_SONNET, CLAUDE_3_7_SONNET_BEDROCK, CLAUDE_3_7_SONNET_VERTEX]
+    try:
+        # Filter messages to only include the most recent images
+        if only_n_most_recent_images:
+            _maybe_filter_to_n_most_recent_images(
+                messages, only_n_most_recent_images
+            )
+        
+        # Detect Claude 3.7 models
+        is_claude_3_7 = "claude-3-7" in model.lower()
 
-    while True:
-        try:
-            if only_n_most_recent_images:
-                _maybe_filter_to_n_most_recent_images(messages, only_n_most_recent_images)
+        # Initialize tool collection
+        bash_tool = BashTool(name="bash")
+        computer_tool = ComputerTool(name="computer")
+        edit_tool = EditTool(name="str_replace_editor")
+        web_search_tool = WebSearchTool(name="web_search", engine=search_engine)
+        
+        tools = {
+            "bash": bash_tool,
+            "computer": computer_tool,
+            "str_replace_editor": edit_tool,
+            "web_search": web_search_tool,
+        }
+        tool_collection = ToolCollection(tools=tools)
+        
+        # Set system prompt
+        system_prompt = (
+            f"You are Claude, an AI assistant created by Anthropic. You run on a user's computer "
+            f"and can help by executing a variety of tools to take actions on a user's behalf. "
+            f"Some specific capabilities include helping users by: "
+            f"- Running shell commands on the user's computer "
+            f"- Controlling the user's mouse and keyboard to navigate the OS "
+            f"- Editing files on the user's computer. "
+            f"- Searching the web for information. "
+            f"When you perform a tool use, such as running a shell command, simply call the right "
+            f"function with parameters directly, e.g. `bash(...)`. The user will see the result "
+            f"of the command. "
+            f"You can use the standard bash commands like ls, cat, nano etc. You'll get the output "
+            f"and can use that to determine what to do next."
+            f"\n\n{system_prompt_suffix}"
+        )
 
-            if provider == APIProvider.ANTHROPIC:
-                client = Anthropic(api_key=api_key)
-            elif provider == APIProvider.VERTEX:
-                client = AnthropicVertex()
-            elif provider == APIProvider.BEDROCK:
-                client = AnthropicBedrock()
-            else:
-                raise ValueError(f"Unsupported API provider: {provider}")
-
-            # Create base API params
-            api_params = {
-                "max_tokens": max_tokens,
-                "messages": messages,
-                "model": model,
-                "system": system,
+        # Initialize the appropriate API client
+        api_params = {
+            "max_tokens": max_tokens
+        }
+        
+        # Set the appropriate beta flag and tool configuration based on model
+        if is_claude_3_7:
+            # For Claude 3.7, don't use beta flags but use the 2025 tool types
+            # api_params["betas"] = [BETA_FLAG_2025]  # Removing this line as it's causing the error
+            
+            # Configure tools with 2025 type identifiers
+            api_params["tools"] = [
+                # Removing this as it's not supported for Claude 3.7 Sonnet
+                # {
+                #    "type": COMPUTER_TOOL_2025,
+                #    "name": "computer"
+                # },
+                {
+                    "type": BASH_TOOL_2025,
+                    "name": "bash"
+                },
+                {
+                    "type": TEXT_EDITOR_TOOL_2025,
+                    "name": "str_replace_editor"
+                },
+                {
+                    "type": "function",
+                    "function": web_search_tool.to_params()["function"]
+                }
+            ]
+        else:
+            # For Claude 3.5, use 2024 beta flag and standard tool collection
+            api_params["betas"] = [BETA_FLAG]
+            
+            # Configure tools with 2024 type identifiers
+            api_params["tools"] = [
+                {
+                    "type": COMPUTER_TOOL_2024,
+                    "name": "computer"
+                },
+                {
+                    "type": BASH_TOOL_2024,
+                    "name": "bash"
+                },
+                {
+                    "type": TEXT_EDITOR_TOOL_2024,
+                    "name": "str_replace_editor"
+                },
+                {
+                    "type": "function",
+                    "function": web_search_tool.to_params()["function"]
+                }
+            ]
+        
+        # Add thinking parameter if it's Claude 3.7 Sonnet and thinking is enabled
+        if enable_thinking and is_claude_3_7:
+            # Set the thinking parameter with a budget based on AWS documentation
+            thinking_budget = max(1024, max_tokens // 2)  # Use half of max_tokens as thinking budget
+            api_params["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": thinking_budget
             }
             
-            # Set the appropriate beta flag and tool configuration based on model
-            if is_claude_3_7:
-                # For Claude 3.7, don't use beta flags but use the 2025 tool types
-                # api_params["betas"] = [BETA_FLAG_2025]  # Removing this line as it's causing the error
-                
-                # Configure tools with 2025 type identifiers
-                api_params["tools"] = [
-                    # Removing this as it's not supported for Claude 3.7 Sonnet
-                    # {
-                    #    "type": COMPUTER_TOOL_2025,
-                    #    "name": "computer"
-                    # },
-                    {
-                        "type": BASH_TOOL_2025,
-                        "name": "bash"
-                    },
-                    {
-                        "type": TEXT_EDITOR_TOOL_2025,
-                        "name": "str_replace_editor"
-                    }
-                ]
-            else:
-                # For Claude 3.5, use 2024 beta flag and standard tool collection
-                api_params["betas"] = [BETA_FLAG]
-                api_params["tools"] = tool_collection.to_params()
-            
-            # Add thinking parameter if it's Claude 3.7 Sonnet and thinking is enabled
-            if enable_thinking and is_claude_3_7:
-                # Set the thinking parameter with a budget based on AWS documentation
-                thinking_budget = max(1024, max_tokens // 2)  # Use half of max_tokens as thinking budget
-                api_params["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": thinking_budget
-                }
-                
-            raw_response = client.beta.messages.with_raw_response.create(**api_params)
+        raw_response = client.beta.messages.with_raw_response.create(**api_params)
 
-            api_response_callback(cast(APIResponse[BetaMessage], raw_response))
+        api_response_callback(cast(APIResponse[BetaMessage], raw_response))
 
-            response = raw_response.parse()
+        response = raw_response.parse()
 
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": cast(list[BetaContentBlockParam], response.content),
-                }
-            )
+        messages.append(
+            {
+                "role": "assistant",
+                "content": cast(list[BetaContentBlockParam], response.content),
+            }
+        )
 
-            tool_result_content: list[BetaToolResultBlockParam] = []
-            for content_block in cast(list[BetaContentBlock], response.content):
-                print("CONTENT", content_block)
-                output_callback(content_block)
-                if content_block.type == "tool_use":
-                    try:
-                        result = await tool_collection.run(
-                            name=content_block.name,
-                            tool_input=cast(dict[str, Any], content_block.input),
-                        )
-                    except Exception as e:
-                        # Handle tool execution errors
-                        result = ToolResult(
-                            error=f"Error executing tool {content_block.name}: {str(e)}",
-                            system="Tool execution failed due to an internal error."
-                        )
-                    
-                    tool_result_content.append(
-                        _make_api_tool_result(result, content_block.id)
+        tool_result_content: list[BetaToolResultBlockParam] = []
+        for content_block in cast(list[BetaContentBlock], response.content):
+            print("CONTENT", content_block)
+            output_callback(content_block)
+            if content_block.type == "tool_use":
+                try:
+                    result = await tool_collection.run(
+                        name=content_block.name,
+                        tool_input=cast(dict[str, Any], content_block.input),
                     )
-                    tool_output_callback(result, content_block.id)
+                except Exception as e:
+                    # Handle tool execution errors
+                    result = ToolResult(
+                        error=f"Error executing tool {content_block.name}: {str(e)}",
+                        system="Tool execution failed due to an internal error."
+                    )
+                
+                tool_result_content.append(
+                    _make_api_tool_result(result, content_block.id)
+                )
+                tool_output_callback(result, content_block.id)
 
-            if not tool_result_content:
-                return messages
-
-            messages.append({"content": tool_result_content, "role": "user"})
-            
-        except Exception as e:
-            print(f"Error in sampling loop: {str(e)}")
-            if error_callback:
-                error_callback(e)
-            # Return current messages to avoid losing conversation history
+        if not tool_result_content:
             return messages
+
+        messages.append({"content": tool_result_content, "role": "user"})
+        
+    except Exception as e:
+        print(f"Error in sampling loop: {str(e)}")
+        if error_callback:
+            error_callback(e)
+        # Return current messages to avoid losing conversation history
+        return messages
 
 
 def _maybe_filter_to_n_most_recent_images(

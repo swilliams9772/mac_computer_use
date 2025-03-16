@@ -129,174 +129,149 @@ def get_model_display_name(model_id: str) -> str:
 
 
 async def main():
-    """Render loop for streamlit"""
-    setup_state()
-
+    """Run the Streamlit application."""
+    st.set_page_config(page_title="Claude Computer Use", page_icon="🧠", layout="wide")
     st.markdown(STREAMLIT_STYLE, unsafe_allow_html=True)
 
-    st.title("Claude Computer Use for Mac")
+    # Initialize session state for messages if not present
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
 
-    st.markdown("""This is from [Mac Computer Use](https://github.com/deedy/mac_computer_use), a fork of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) to work natively on Mac.""")
+    # Render the sidebar and get settings
+    _render_sidebar()
 
-    with st.sidebar:
+    st.title("Claude Computer Use")
 
-        def _reset_api_provider():
-            if st.session_state.provider_radio != st.session_state.provider:
-                _reset_model()
-                st.session_state.provider = st.session_state.provider_radio
-                st.session_state.auth_validated = False
+    # Display the chat messages
+    for msg in st.session_state.messages:
+        if msg["role"] == "user":
+            st.chat_message("user").write(msg["content"])
+        else:  # assistant
+            with st.chat_message("assistant"):
+                st.write(msg["content"])
 
-        provider_options = [option.value for option in APIProvider]
-        st.radio(
-            "API Provider",
-            options=provider_options,
-            key="provider_radio",
-            format_func=lambda x: x.title(),
-            on_change=_reset_api_provider,
-        )
+    # Handle user inputs and generate responses
+    prompt = st.chat_input("Send a message to Claude")
+    if prompt:
+        # Add user message to chat history
+        st.chat_message("user").write(prompt)
+        st.session_state.messages.append({"role": "user", "content": prompt})
 
-        # Replace text input with selectbox for model selection
-        model_options = get_model_options(cast(APIProvider, st.session_state.provider))
-        st.selectbox(
-            "Model",
-            options=model_options,
-            key="model",
-            format_func=get_model_display_name
-        )
-        
-        # Add checkbox for thinking feature (only for Claude 3.7)
-        is_claude_3_7 = st.session_state.model in [
-            CLAUDE_3_7_SONNET, 
-            CLAUDE_3_7_SONNET_BEDROCK, 
-            CLAUDE_3_7_SONNET_VERTEX
-        ]
-        
-        thinking_col1, thinking_col2 = st.columns([3, 1])
-        with thinking_col1:
-            st.checkbox(
-                "Enable Thinking", 
-                key="enable_thinking",
-                disabled=not is_claude_3_7
-            )
-        with thinking_col2:
-            if is_claude_3_7:
-                st.info("✓")
-            else:
-                st.info("✗")
+        # Get API settings from session state
+        provider = APIProvider(st.session_state.provider)
+        model = st.session_state.model
+        enable_thinking = st.session_state.get("thinking", True)
+        search_engine = st.session_state.get("search_engine", "duckduckgo")
+
+        # Get API keys based on provider
+        if provider == APIProvider.ANTHROPIC:
+            api_key = st.session_state.get("anthropic_api_key", os.getenv("ANTHROPIC_API_KEY", ""))
+        elif provider == APIProvider.BEDROCK:
+            api_key = {
+                "aws_access_key_id": st.session_state.get("aws_access_key_id", os.getenv("AWS_ACCESS_KEY_ID", "")),
+                "aws_secret_access_key": st.session_state.get("aws_secret_access_key", os.getenv("AWS_SECRET_ACCESS_KEY", "")),
+            }
+        else:  # vertex
+            api_key = st.session_state.get("google_api_key", os.getenv("GOOGLE_API_KEY", ""))
+
+        # Display assistant response with spinner
+        with st.chat_message("assistant"):
+            response_placeholder = st.empty()
+            response_text = ""
+            tool_outputs = []
+
+            st.markdown('<span data-teststate="running"></span>', unsafe_allow_html=True)
+
+            # Callback for handling content updates
+            def content_callback(content):
+                nonlocal response_text
+                if content.type == "text":
+                    response_text += content.text
+                    response_placeholder.write(response_text)
+                elif hasattr(content, "type") and content.type == "thinking":
+                    # Display thinking in a colored box
+                    thinking_text = content.thinking
+                    response_placeholder.markdown(
+                        f"{response_text}\n\n"
+                        f"<div style='background-color: #f0f0f0; padding: 10px; "
+                        f"border-radius: 5px; margin: 10px 0;'>"
+                        f"<details><summary><b>Claude's Thinking Process</b></summary>"
+                        f"<pre style='white-space: pre-wrap;'>{thinking_text}</pre>"
+                        f"</details></div>",
+                        unsafe_allow_html=True
+                    )
+
+            # Callback for handling tool outputs
+            def tool_callback(result, tool_use_id):
+                nonlocal tool_outputs
+                # Display the tool output
+                if result.output:
+                    tool_outputs.append(
+                        {
+                            "id": tool_use_id,
+                            "type": "output",
+                            "content": result.output
+                        }
+                    )
+                    # Show tool outputs in a styled box
+                    tool_output_html = "<div style='background-color: #e6f7ff; padding: 10px; border-radius: 5px; margin: 10px 0;'>"
+                    tool_output_html += "<details open><summary><b>Tool Output</b></summary>"
+                    tool_output_html += "<pre style='white-space: pre-wrap;'>"
+                    for output in tool_outputs:
+                        tool_output_html += f"{output['content']}\n\n"
+                    tool_output_html += "</pre></details></div>"
+                    
+                    response_placeholder.markdown(
+                        f"{response_text}\n\n{tool_output_html}",
+                        unsafe_allow_html=True
+                    )
                 
-        if is_claude_3_7:
-            st.info("Claude 3.7's thinking capability allows for step-by-step reasoning, producing more thorough and accurate responses.")
+                # Handle image outputs
+                if result.base64_image:
+                    st.image(
+                        base64.b64decode(result.base64_image),
+                        caption="Generated Image",
+                        use_column_width=True
+                    )
 
-        if st.session_state.provider == APIProvider.ANTHROPIC:
-            st.text_input(
-                "Anthropic API Key",
-                type="password",
-                key="api_key",
-                on_change=lambda: save_to_storage("api_key", st.session_state.api_key),
-            )
+            # Callback for API responses
+            def api_response_callback(response):
+                pass  # We can implement this later if needed
 
-        st.number_input(
-            "Only send N most recent images",
-            min_value=0,
-            key="only_n_most_recent_images",
-            help="To decrease the total tokens sent, remove older screenshots from the conversation",
-        )
-        st.text_area(
-            "Custom System Prompt Suffix",
-            key="custom_system_prompt",
-            help="Additional instructions to append to the system prompt. see computer_use_demo/loop.py for the base system prompt.",
-            on_change=lambda: save_to_storage(
-                "system_prompt", st.session_state.custom_system_prompt
-            ),
-        )
-        st.checkbox("Hide screenshots", key="hide_images")
+            # Callback for errors
+            def error_callback(error):
+                _display_error(error)
 
-        if st.button("Reset", type="primary"):
-            with st.spinner("Resetting..."):
-                st.session_state.clear()
-                setup_state()
+            try:
+                # Build message history
+                messages = [{"role": "user", "content": prompt}]
 
-                subprocess.run("pkill Xvfb; pkill tint2", shell=True)  # noqa: ASYNC221
-                await asyncio.sleep(1)
-                subprocess.run("./start_all.sh", shell=True)  # noqa: ASYNC221
+                # Call the sampling loop from loop.py
+                await sampling_loop(
+                    model=model,
+                    provider=provider,
+                    system_prompt_suffix=f"You are using the {search_engine} search engine for web searches.",
+                    messages=messages,
+                    output_callback=content_callback,
+                    tool_output_callback=tool_callback,
+                    api_response_callback=api_response_callback,
+                    error_callback=error_callback,
+                    api_key=api_key,
+                    max_tokens=4096,
+                    enable_thinking=enable_thinking,
+                    search_engine=search_engine,
+                )
 
-    if not st.session_state.auth_validated:
-        if auth_error := validate_auth(
-            st.session_state.provider, st.session_state.api_key
-        ):
-            st.warning(f"Please resolve the following auth issue:\n\n{auth_error}")
-            return
-        else:
-            st.session_state.auth_validated = True
+                # Add assistant response to chat history
+                st.session_state.messages.append(
+                    {"role": "assistant", "content": response_text}
+                )
 
-    chat, http_logs = st.tabs(["Chat", "HTTP Exchange Logs"])
-    new_message = st.chat_input(
-        "Type a message to send to Claude to control the computer..."
-    )
+            except Exception as e:
+                _display_error(e)
 
-    with chat:
-        # render past chats
-        for message in st.session_state.messages:
-            if isinstance(message["content"], str):
-                _render_message(message["role"], message["content"])
-            elif isinstance(message["content"], list):
-                for block in message["content"]:
-                    # the tool result we send back to the Anthropic API isn't sufficient to render all details,
-                    # so we store the tool use responses
-                    if isinstance(block, dict) and block["type"] == "tool_result":
-                        _render_message(
-                            Sender.TOOL, st.session_state.tools[block["tool_use_id"]]
-                        )
-                    else:
-                        _render_message(
-                            message["role"],
-                            cast(BetaTextBlock | BetaToolUseBlock, block),
-                        )
-
-        # render past http exchanges
-        for identity, response in st.session_state.responses.items():
-            _render_api_response(response, identity, http_logs)
-
-        # render past chats
-        if new_message:
-            st.session_state.messages.append(
-                {
-                    "role": Sender.USER,
-                    "content": [TextBlock(type="text", text=new_message)],
-                }
-            )
-            _render_message(Sender.USER, new_message)
-
-        try:
-            most_recent_message = st.session_state["messages"][-1]
-        except IndexError:
-            return
-
-        if most_recent_message["role"] is not Sender.USER:
-            # we don't have a user message to respond to, exit early
-            return
-
-        with st.spinner("Running Agent..."):
-            # run the agent sampling loop with the newest message
-            st.session_state.messages = await sampling_loop(
-                system_prompt_suffix=st.session_state.custom_system_prompt,
-                model=st.session_state.model,
-                provider=st.session_state.provider,
-                messages=st.session_state.messages,
-                output_callback=partial(_render_message, Sender.BOT),
-                tool_output_callback=partial(
-                    _tool_output_callback, tool_state=st.session_state.tools
-                ),
-                api_response_callback=partial(
-                    _api_response_callback,
-                    tab=http_logs,
-                    response_state=st.session_state.responses,
-                ),
-                error_callback=_display_error,
-                api_key=st.session_state.api_key,
-                only_n_most_recent_images=st.session_state.only_n_most_recent_images,
-                enable_thinking=st.session_state.enable_thinking,
-            )
+            finally:
+                st.markdown('<span data-teststate="complete"></span>', unsafe_allow_html=True)
 
 
 def validate_auth(provider: APIProvider, api_key: str | None):
@@ -452,6 +427,124 @@ def _display_error(error: Exception):
     # Log detailed error for debugging
     print(f"Error details: {error}")
     
+
+def _render_sidebar():
+    """Render the sidebar with options to configure the assistant."""
+    st.sidebar.title("Settings")
+
+    provider = st.sidebar.selectbox(
+        "API Provider",
+        ["anthropic", "bedrock", "vertex"],
+        index=0,
+        key="provider",
+    )
+
+    # Initialize session state for model if not present
+    if "model" not in st.session_state:
+        st.session_state.model = PROVIDER_TO_DEFAULT_MODEL_NAME[APIProvider(provider)]
+
+    # Filter models based on provider
+    if provider == "anthropic":
+        models = ["claude-3-5-sonnet-20241022", "claude-3-7-sonnet-20250224"]
+    elif provider == "bedrock":
+        models = ["anthropic.claude-3-5-sonnet-20241022-v2:0", "anthropic.claude-3-7-sonnet-20250224:0"]
+    else:  # vertex
+        models = ["claude-3-5-sonnet-v2@20241022", "claude-3-7-sonnet@20250224"]
+
+    # Replace if selected model is not valid for provider
+    if st.session_state.model not in models:
+        st.session_state.model = PROVIDER_TO_DEFAULT_MODEL_NAME[APIProvider(provider)]
+
+    selected_model = st.sidebar.selectbox(
+        "Model", models, index=models.index(st.session_state.model), key="model"
+    )
+
+    with st.sidebar.expander("API Keys", expanded=False):
+        st.info(
+            "Enter your API keys below. These will be stored in session state and not logged."
+        )
+        if provider == "anthropic":
+            st.session_state.anthropic_api_key = st.text_input(
+                "Anthropic API Key",
+                type="password",
+                value=st.session_state.get("anthropic_api_key", os.getenv("ANTHROPIC_API_KEY", "")),
+                key="anthropic_api_key_input",
+            )
+        elif provider == "bedrock":
+            st.session_state.aws_access_key_id = st.text_input(
+                "AWS Access Key ID",
+                type="password",
+                value=st.session_state.get("aws_access_key_id", os.getenv("AWS_ACCESS_KEY_ID", "")),
+                key="aws_access_key_id_input",
+            )
+            st.session_state.aws_secret_access_key = st.text_input(
+                "AWS Secret Access Key",
+                type="password",
+                value=st.session_state.get("aws_secret_access_key", os.getenv("AWS_SECRET_ACCESS_KEY", "")),
+                key="aws_secret_access_key_input",
+            )
+        elif provider == "vertex":
+            st.session_state.google_api_key = st.text_input(
+                "Google API Key",
+                type="password",
+                value=st.session_state.get("google_api_key", os.getenv("GOOGLE_API_KEY", "")),
+                key="google_api_key_input",
+            )
+
+    with st.sidebar.expander("Web Search API Keys", expanded=False):
+        st.info(
+            "Enter your search engine API keys below. DuckDuckGo works without keys but has limited results."
+        )
+        st.session_state.search_engine = st.selectbox(
+            "Search Engine",
+            ["duckduckgo", "google", "bing"],
+            index=0,
+            key="search_engine",
+        )
+        
+        if st.session_state.search_engine == "google":
+            st.session_state.google_search_api_key = st.text_input(
+                "Google Search API Key",
+                type="password",
+                value=st.session_state.get("google_search_api_key", os.getenv("GOOGLE_API_KEY", "")),
+                key="google_search_api_key_input",
+            )
+            st.session_state.google_cx_id = st.text_input(
+                "Google Custom Search CX ID",
+                type="password",
+                value=st.session_state.get("google_cx_id", os.getenv("GOOGLE_CX_ID", "")),
+                key="google_cx_id_input",
+            )
+            # Update environment variables for web search tool
+            os.environ["GOOGLE_API_KEY"] = st.session_state.google_search_api_key
+            os.environ["GOOGLE_CX_ID"] = st.session_state.google_cx_id
+            
+        elif st.session_state.search_engine == "bing":
+            st.session_state.bing_api_key = st.text_input(
+                "Bing API Key",
+                type="password",
+                value=st.session_state.get("bing_api_key", os.getenv("BING_API_KEY", "")),
+                key="bing_api_key_input",
+            )
+            # Update environment variable for web search tool
+            os.environ["BING_API_KEY"] = st.session_state.bing_api_key
+
+    with st.sidebar.expander("Advanced Options", expanded=False):
+        st.session_state.thinking = st.toggle(
+            "Enable Thinking",
+            value=st.session_state.get("thinking", True),
+            key="thinking_toggle",
+        )
+        st.markdown("*Note: Thinking is only available with Claude 3.7 Sonnet models.*")
+
+    st.sidebar.divider()
+    
+    st.session_state.provider = provider
+    
+    if st.sidebar.button("Clear Chat History"):
+        st.session_state.messages = []
+        st.rerun()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
