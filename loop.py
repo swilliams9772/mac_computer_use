@@ -234,7 +234,23 @@ async def sampling_loop(
                 },
                 {
                     "type": "custom",
-                    **web_search_tool.to_params()
+                    "name": "web_search",
+                    "description": "Search the web for information to answer questions about current events, facts, or any other topic.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "search_query": {
+                                "type": "string", 
+                                "description": "The search query to look up on the web"
+                            },
+                            "num_results": {
+                                "type": "integer",
+                                "description": "Number of results to return (max 10)",
+                                "default": 5
+                            }
+                        },
+                        "required": ["search_query"]
+                    }
                 }
             ]
         else:
@@ -257,7 +273,23 @@ async def sampling_loop(
                 },
                 {
                     "type": "custom",
-                    **web_search_tool.to_params()
+                    "name": "web_search",
+                    "description": "Search the web for information to answer questions about current events, facts, or any other topic.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "search_query": {
+                                "type": "string", 
+                                "description": "The search query to look up on the web"
+                            },
+                            "num_results": {
+                                "type": "integer",
+                                "description": "Number of results to return (max 10)",
+                                "default": 5
+                            }
+                        },
+                        "required": ["search_query"]
+                    }
                 }
             ]
         
