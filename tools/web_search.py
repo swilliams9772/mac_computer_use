@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Literal
 import requests
 import json
 import os
@@ -10,8 +10,9 @@ from .base import BaseAnthropicTool, ToolResult, ToolError
 class WebSearchTool(BaseAnthropicTool):
     """Tool for searching the web using DuckDuckGo, Google, or Bing."""
 
-    def __init__(self, name="web_search", engine="duckduckgo"):
-        self.name = name
+    name: Literal["web_search"] = "web_search"
+    
+    def __init__(self, engine="duckduckgo"):
         self.engine = engine
 
     def __call__(self, search_query: str, num_results: int = 5) -> ToolResult:

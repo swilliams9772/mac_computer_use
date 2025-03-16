@@ -154,10 +154,10 @@ async def sampling_loop(
         is_claude_3_7 = "claude-3-7" in model.lower()
 
         # Initialize tool collection
-        bash_tool = BashTool(name="bash")
-        computer_tool = ComputerTool(name="computer")
-        edit_tool = EditTool(name="str_replace_editor")
-        web_search_tool = WebSearchTool(name="web_search", engine=search_engine)
+        bash_tool = BashTool()
+        computer_tool = ComputerTool()
+        edit_tool = EditTool()
+        web_search_tool = WebSearchTool(engine=search_engine)
         
         tools = {
             "bash": bash_tool,
