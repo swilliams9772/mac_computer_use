@@ -184,11 +184,27 @@ async def sampling_loop(
             f"\n\n{system_prompt_suffix}"
         )
 
-        # Initialize the appropriate API client
-        api_params = {
-            "max_tokens": max_tokens
-        }
+        # Initialize the appropriate API client based on provider
+        if provider == APIProvider.ANTHROPIC:
+            client = Anthropic(api_key=api_key)
+        elif provider == APIProvider.BEDROCK:
+            client = AnthropicBedrock(
+                aws_access_key=api_key.get("aws_access_key_id"),
+                aws_secret_key=api_key.get("aws_secret_access_key"),
+            )
+        elif provider == APIProvider.VERTEX:
+            client = AnthropicVertex()
+        else:
+            raise ValueError(f"Unsupported API provider: {provider}")
         
+        # Set up API parameters
+        api_params = {
+            "max_tokens": max_tokens,
+            "messages": messages,
+            "model": model,
+            "system": system_prompt
+        }
+            
         # Set the appropriate beta flag and tool configuration based on model
         if is_claude_3_7:
             # For Claude 3.7, don't use beta flags but use the 2025 tool types
@@ -246,7 +262,7 @@ async def sampling_loop(
                 "type": "enabled",
                 "budget_tokens": thinking_budget
             }
-            
+        
         raw_response = client.beta.messages.with_raw_response.create(**api_params)
 
         api_response_callback(cast(APIResponse[BetaMessage], raw_response))
