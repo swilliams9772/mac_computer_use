@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal, TypedDict
 from uuid import uuid4
 
-from anthropic.types.beta import BetaToolComputerUse20241022Param
+# Import removed - using generic dict for to_params() return type
 
 from .base import BaseAnthropicTool, ToolError, ToolResult
 from .run import run
@@ -21,15 +21,21 @@ TYPING_GROUP_SIZE = 50
 
 Action = Literal[
     "key",
+    "hold_key",  # New in 20250124
     "type",
+    "cursor_position",
     "mouse_move",
+    "left_mouse_down",  # New in 20250124
+    "left_mouse_up",  # New in 20250124
     "left_click",
     "left_click_drag",
     "right_click",
     "middle_click",
     "double_click",
+    "triple_click",  # New in 20250124
+    "scroll",  # New in 20250124
+    "wait",  # New in 20250124
     "screenshot",
-    "cursor_position",
 ]
 
 
@@ -71,7 +77,7 @@ class ComputerTool(BaseAnthropicTool):
     """
 
     name: Literal["computer"] = "computer"
-    api_type: Literal["computer_20241022"] = "computer_20241022"
+    api_type: str  # Will be set dynamically based on version
     width: int
     height: int
     display_num: int | None
@@ -87,12 +93,13 @@ class ComputerTool(BaseAnthropicTool):
             "display_number": self.display_num,
         }
 
-    def to_params(self) -> BetaToolComputerUse20241022Param:
+    def to_params(self):
         return {"name": self.name, "type": self.api_type, **self.options}
 
-    def __init__(self):
+    def __init__(self, api_version: str = "computer_20241022"):
         super().__init__()
-
+        self.api_type = api_version
+        
         self.width, self.height = pyautogui.size()
         assert self.width and self.height, "WIDTH, HEIGHT must be set"
         self.display_num = None  # macOS doesn't use X11 display numbers
@@ -103,10 +110,14 @@ class ComputerTool(BaseAnthropicTool):
         action: Action,
         text: str | None = None,
         coordinate: tuple[int, int] | None = None,
+        duration: int | None = None,  # New in 20250124 - for hold_key and wait
+        scroll_amount: int | None = None,  # New in 20250124 - for scroll
+        scroll_direction: str | None = None,  # New in 20250124 - for scroll
+        start_coordinate: tuple[int, int] | None = None,  # New in 20250124 - for left_click_drag
         **kwargs,
     ):
         print("Action: ", action, text, coordinate)
-        if action in ("mouse_move", "left_click_drag"):
+        if action == "mouse_move":
             if coordinate is None:
                 raise ToolError(f"coordinate is required for {action}")
             if text is not None:
@@ -117,10 +128,33 @@ class ComputerTool(BaseAnthropicTool):
                 raise ToolError(f"{coordinate} must be a tuple of non-negative ints")
 
             x, y = self.scale_coordinates(ScalingSource.API, coordinate[0], coordinate[1])
+            return await self.shell(f"cliclick m:{x},{y}")
 
-            if action == "mouse_move":
-                return await self.shell(f"cliclick m:{x},{y}")
-            elif action == "left_click_drag":
+        if action == "left_click_drag":
+            if coordinate is None:
+                raise ToolError(f"coordinate is required for {action}")
+            if text is not None:
+                raise ToolError(f"text is not accepted for {action}")
+            if not isinstance(coordinate, list) or len(coordinate) != 2:
+                raise ToolError(f"{coordinate} must be a tuple of length 2")
+            if not all(isinstance(i, int) and i >= 0 for i in coordinate):
+                raise ToolError(f"{coordinate} must be a tuple of non-negative ints")
+
+            # Handle enhanced version with start_coordinate
+            if self.api_type == "computer_20250124" and start_coordinate is not None:
+                if not isinstance(start_coordinate, list) or len(start_coordinate) != 2:
+                    raise ToolError(f"{start_coordinate} must be a tuple of length 2")
+                if not all(isinstance(i, int) and i >= 0 for i in start_coordinate):
+                    raise ToolError(f"{start_coordinate} must be a tuple of non-negative ints")
+                
+                start_x, start_y = self.scale_coordinates(ScalingSource.API, start_coordinate[0], start_coordinate[1])
+                end_x, end_y = self.scale_coordinates(ScalingSource.API, coordinate[0], coordinate[1])
+                
+                # Move to start position, press down, drag to end, release
+                return await self.shell(f"cliclick m:{start_x},{start_y} dd:{end_x},{end_y}")
+            else:
+                # Original behavior for older version
+                x, y = self.scale_coordinates(ScalingSource.API, coordinate[0], coordinate[1])
                 return await self.shell(f"cliclick dd:{x},{y}")
 
         if action in ("key", "type"):
@@ -180,10 +214,95 @@ class ComputerTool(BaseAnthropicTool):
                     base64_image=screenshot_base64,
                 )
 
+        # Handle new actions that require specific parameters
+        if action == "hold_key":
+            if text is None:
+                raise ToolError(f"text is required for {action}")
+            if duration is None:
+                raise ToolError(f"duration is required for {action}")
+            if coordinate is not None:
+                raise ToolError(f"coordinate is not accepted for {action}")
+            
+            # Implement hold_key using keyboard library with duration
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    None, keyboard.press, text
+                )
+                await asyncio.sleep(duration)
+                await asyncio.get_event_loop().run_in_executor(
+                    None, keyboard.release, text
+                )
+                return ToolResult(output=f"Held key: {text} for {duration}s", error=None, base64_image=None)
+            except Exception as e:
+                return ToolResult(output=None, error=str(e), base64_image=None)
+
+        if action == "wait":
+            if duration is None:
+                raise ToolError(f"duration is required for {action}")
+            if text is not None:
+                raise ToolError(f"text is not accepted for {action}")
+            if coordinate is not None:
+                raise ToolError(f"coordinate is not accepted for {action}")
+            
+            await asyncio.sleep(duration)
+            screenshot_base64 = (await self.screenshot()).base64_image
+            return ToolResult(output=f"Waited for {duration}s", error=None, base64_image=screenshot_base64)
+
+        if action == "scroll":
+            if coordinate is None:
+                raise ToolError(f"coordinate is required for {action}")
+            if scroll_direction is None:
+                raise ToolError(f"scroll_direction is required for {action}")
+            if scroll_amount is None:
+                raise ToolError(f"scroll_amount is required for {action}")
+            if text is not None and not isinstance(text, str):
+                raise ToolError(f"text must be a string for {action}")
+
+            x, y = self.scale_coordinates(ScalingSource.API, coordinate[0], coordinate[1])
+            
+            # Implement scroll using pyautogui
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    None, pyautogui.click, x, y
+                )
+                
+                if scroll_direction in ["up", "down"]:
+                    scroll_clicks = scroll_amount if scroll_direction == "up" else -scroll_amount
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, pyautogui.scroll, scroll_clicks, x, y
+                    )
+                
+                screenshot_base64 = (await self.screenshot()).base64_image
+                return ToolResult(output=f"Scrolled {scroll_direction} {scroll_amount} clicks at ({x}, {y})", 
+                                error=None, base64_image=screenshot_base64)
+            except Exception as e:
+                return ToolResult(output=None, error=str(e), base64_image=None)
+
+        if action in ("left_mouse_down", "left_mouse_up"):
+            if text is not None:
+                raise ToolError(f"text is not accepted for {action}")
+            if coordinate is not None:
+                raise ToolError(f"coordinate is not accepted for {action}")
+            
+            try:
+                if action == "left_mouse_down":
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, pyautogui.mouseDown
+                    )
+                    return ToolResult(output="Left mouse button pressed down", error=None, base64_image=None)
+                else:  # left_mouse_up
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, pyautogui.mouseUp
+                    )
+                    return ToolResult(output="Left mouse button released", error=None, base64_image=None)
+            except Exception as e:
+                return ToolResult(output=None, error=str(e), base64_image=None)
+
         if action in (
             "left_click",
             "right_click",
             "double_click",
+            "triple_click",
             "middle_click",
             "screenshot",
             "cursor_position",
@@ -200,7 +319,6 @@ class ComputerTool(BaseAnthropicTool):
                     "cliclick p",
                     take_screenshot=False,
                 )
-                import pdb; pdb.set_trace()
                 if result.output:
                     x, y = map(int, result.output.strip().split(","))
                     x, y = self.scale_coordinates(ScalingSource.COMPUTER, x, y)
@@ -212,6 +330,7 @@ class ComputerTool(BaseAnthropicTool):
                     "right_click": "rc:.",
                     "middle_click": "mc:.",
                     "double_click": "dc:.",
+                    "triple_click": "tc:.",
                 }[action]
                 return await self.shell(f"cliclick {click_cmd}")
 

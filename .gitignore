@@ -162,3 +162,38 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# macOS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+*.swp
+*.swo
+
+# Test files (temporary)
+test_*.py
+*_test.py
+test_success.txt
+
+# Application specific
+app.pid
+*.pid
+
+# Screenshots (if generated during testing)
+screenshot_*.png
+
+# Logs
+*.log
+
+# Virtual environment activation script
+activate.sh
+

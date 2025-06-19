@@ -2,7 +2,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal, get_args
 
-from anthropic.types.beta import BetaToolTextEditor20241022Param
+# Import removed - using generic dict for to_params() return type
 
 from .base import BaseAnthropicTool, CLIResult, ToolError, ToolResult
 from .run import maybe_truncate, run
@@ -23,16 +23,26 @@ class EditTool(BaseAnthropicTool):
     The tool parameters are defined by Anthropic and are not editable.
     """
 
-    api_type: Literal["text_editor_20241022"] = "text_editor_20241022"
-    name: Literal["str_replace_editor"] = "str_replace_editor"
-
+    api_type: str  # Will be set dynamically based on version
+    name: str  # Will be set based on version
     _file_history: dict[Path, list[str]]
 
-    def __init__(self):
+    def __init__(self, api_version: str = "text_editor_20241022"):
+        self.api_type = api_version
+        # Set the appropriate name based on API version
+        if api_version == "text_editor_20250429":
+            self.name = "str_replace_based_edit_tool"  # Claude 4 name
+        else:
+            self.name = "str_replace_editor"  # Claude 3.7 and 3.5 name
+        
         self._file_history = defaultdict(list)
         super().__init__()
 
-    def to_params(self) -> BetaToolTextEditor20241022Param:
+    def _supports_undo_edit(self) -> bool:
+        """Check if the current API version supports undo_edit command."""
+        return self.api_type != "text_editor_20250429"  # Claude 4 doesn't support undo_edit
+
+    def to_params(self):
         return {
             "name": self.name,
             "type": self.api_type,
@@ -75,6 +85,8 @@ class EditTool(BaseAnthropicTool):
                 raise ToolError("Parameter `new_str` is required for command: insert")
             return self.insert(_path, insert_line, new_str)
         elif command == "undo_edit":
+            if not self._supports_undo_edit():
+                raise ToolError(f"The `undo_edit` command is not supported in {self.api_type}. This command is only available in text_editor_20250124 and text_editor_20241022.")
             return self.undo_edit(_path)
         raise ToolError(
             f'Unrecognized command {command}. The allowed commands for the {self.name} tool are: {", ".join(get_args(Command))}'

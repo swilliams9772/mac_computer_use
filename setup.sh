@@ -94,10 +94,28 @@ EOL
 chmod +x activate.sh
 
 echo ""
-echo "Setup complete! To activate the environment and run the app:"
+echo "✅ Setup complete! To activate the environment and run the app:"
 echo "1. Run: source activate.sh"
 echo "2. Set your environment variables as shown above"
 echo "3. Run: streamlit run streamlit.py"
+echo ""
+echo "🎯 Quick start with Claude 4:"
+echo "   export ANTHROPIC_API_KEY=your_api_key_here"
+echo "   export WIDTH=1280"
+echo "   export HEIGHT=800"
+echo "   streamlit run streamlit.py"
+echo ""
+echo "📖 Claude 4 features included:"
+echo "   - Extended thinking for complex reasoning"
+echo "   - Higher output token limits (up to 64k)"
+echo "   - Improved computer use capabilities"
+echo "   - Better model selection interface"
+echo ""
+echo "🧪 Running setup verification..."
+python test_setup.py
+
+echo ""
+echo "✅ Setup verification complete!"
 
 # Activate the virtual environment for the current session
 source activate.sh

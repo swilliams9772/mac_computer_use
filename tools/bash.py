@@ -2,7 +2,7 @@ import asyncio
 import os
 from typing import ClassVar, Literal
 
-from anthropic.types.beta import BetaToolBash20241022Param
+# Import removed - using generic dict for to_params() return type
 
 from .base import BaseAnthropicTool, CLIResult, ToolError, ToolResult
 
@@ -111,9 +111,10 @@ class BashTool(BaseAnthropicTool):
 
     _session: _BashSession | None
     name: ClassVar[Literal["bash"]] = "bash"
-    api_type: ClassVar[Literal["bash_20241022"]] = "bash_20241022"
+    api_type: str  # Will be set dynamically based on version
 
-    def __init__(self):
+    def __init__(self, api_version: str = "bash_20241022"):
+        self.api_type = api_version
         self._session = None
         super().__init__()
 
@@ -137,7 +138,7 @@ class BashTool(BaseAnthropicTool):
 
         raise ToolError("no command provided.")
 
-    def to_params(self) -> BetaToolBash20241022Param:
+    def to_params(self):
         return {
             "type": self.api_type,
             "name": self.name,

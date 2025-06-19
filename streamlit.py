@@ -23,8 +23,11 @@ from streamlit.delta_generator import DeltaGenerator
 
 from loop import (
     PROVIDER_TO_DEFAULT_MODEL_NAME,
+    AVAILABLE_MODELS,
     APIProvider,
     sampling_loop,
+    model_supports_extended_thinking,
+    get_max_tokens_for_model,
 )
 from tools import ToolResult
 from dotenv import load_dotenv
@@ -85,6 +88,12 @@ def setup_state():
         st.session_state.custom_system_prompt = load_from_storage("system_prompt") or ""
     if "hide_images" not in st.session_state:
         st.session_state.hide_images = False
+    if "enable_extended_thinking" not in st.session_state:
+        st.session_state.enable_extended_thinking = False
+    if "thinking_budget_tokens" not in st.session_state:
+        st.session_state.thinking_budget_tokens = 10000
+    if "max_tokens" not in st.session_state:
+        st.session_state.max_tokens = None
 
 
 def _reset_model():
@@ -99,9 +108,28 @@ async def main():
 
     st.markdown(STREAMLIT_STYLE, unsafe_allow_html=True)
 
-    st.title("Claude Computer Use for Mac")
+    st.title("🚀 Claude Computer Use for Mac")
+    st.caption("Enhanced with Claude 3.7 & Claude 4 🧠")
 
-    st.markdown("""This is from [Mac Computer Use](https://github.com/deedy/mac_computer_use), a fork of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) to work natively on Mac.""")
+    st.markdown("""
+    This is an enhanced version of [Mac Computer Use](https://github.com/deedy/mac_computer_use), a fork of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) to work natively on Mac.
+    
+    **🆕 New Features:**
+    - **Claude 4 Support** - Most capable models with up to 64k output tokens
+    - **Extended Thinking** - Claude's step-by-step reasoning for complex tasks
+    - **Smart Model Selection** - Easy switching between Claude 3.5, 3.7, and 4 models
+    - **Enhanced UI** - Better model configuration and debugging tools
+    
+    **⚡ Quick Start:** Select Claude Sonnet 4 or Opus 4 from the sidebar for the best experience!
+    """)
+    
+    # Show current model status
+    current_model = st.session_state.get('model', 'Not selected')
+    if model_supports_extended_thinking(current_model):
+        st.success(f"🎯 **Current Model:** {current_model} (Extended Thinking Supported)")
+    else:
+        st.info(f"🎯 **Current Model:** {current_model}")
+    
 
     with st.sidebar:
 
@@ -120,7 +148,43 @@ async def main():
             on_change=_reset_api_provider,
         )
 
-        st.text_input("Model", key="model")
+        # Model selection with dropdown
+        available_models = AVAILABLE_MODELS.get(st.session_state.provider, [])
+        model_options = [model[0] for model in available_models]
+        model_descriptions = {model[0]: model[1] for model in available_models}
+        
+        if st.session_state.model not in model_options and model_options:
+            st.session_state.model = model_options[0]
+        
+        selected_model = st.selectbox(
+            "Model",
+            options=model_options,
+            index=model_options.index(st.session_state.model) if st.session_state.model in model_options else 0,
+            format_func=lambda x: f"{x} - {model_descriptions.get(x, '')}",
+            key="model_selector"
+        )
+        
+        if selected_model != st.session_state.model:
+            st.session_state.model = selected_model
+            # Reset max_tokens when model changes
+            st.session_state.max_tokens = None
+        
+        # Show model capabilities
+        if model_supports_extended_thinking(st.session_state.model):
+            st.success("✨ This model supports Extended Thinking")
+        
+        max_tokens_for_model = get_max_tokens_for_model(st.session_state.model)
+        st.info(f"📊 Max output tokens: {max_tokens_for_model:,}")
+        
+        # Allow manual model entry for advanced users
+        with st.expander("🔧 Advanced: Custom Model"):
+            custom_model = st.text_input(
+                "Enter custom model name",
+                value=st.session_state.model,
+                help="For advanced users who want to specify a custom model name"
+            )
+            if custom_model != st.session_state.model:
+                st.session_state.model = custom_model
 
         if st.session_state.provider == APIProvider.ANTHROPIC:
             st.text_input(
@@ -130,21 +194,58 @@ async def main():
                 on_change=lambda: save_to_storage("api_key", st.session_state.api_key),
             )
 
-        st.number_input(
-            "Only send N most recent images",
-            min_value=0,
-            key="only_n_most_recent_images",
-            help="To decrease the total tokens sent, remove older screenshots from the conversation",
-        )
-        st.text_area(
-            "Custom System Prompt Suffix",
-            key="custom_system_prompt",
-            help="Additional instructions to append to the system prompt. see computer_use_demo/loop.py for the base system prompt.",
-            on_change=lambda: save_to_storage(
-                "system_prompt", st.session_state.custom_system_prompt
-            ),
-        )
-        st.checkbox("Hide screenshots", key="hide_images")
+        # Extended Thinking Configuration
+        if model_supports_extended_thinking(st.session_state.model):
+            with st.expander("🧠 Extended Thinking Settings", expanded=False):
+                st.checkbox(
+                    "Enable Extended Thinking",
+                    key="enable_extended_thinking",
+                    help="Enable Claude's step-by-step reasoning process for complex tasks"
+                )
+                
+                if st.session_state.enable_extended_thinking:
+                    st.slider(
+                        "Thinking Budget (tokens)",
+                        min_value=1024,
+                        max_value=32000,
+                        value=st.session_state.thinking_budget_tokens,
+                        step=1024,
+                        key="thinking_budget_tokens",
+                        help="Maximum tokens Claude can use for internal reasoning"
+                    )
+                    st.info("💡 Higher budgets allow more thorough analysis but increase latency and cost")
+
+        # Advanced Settings
+        with st.expander("⚙️ Advanced Settings", expanded=False):
+            # Max tokens override
+            default_max_tokens = get_max_tokens_for_model(st.session_state.model)
+            st.number_input(
+                "Max Output Tokens",
+                min_value=1000,
+                max_value=default_max_tokens,
+                value=st.session_state.max_tokens or default_max_tokens,
+                step=1000,
+                key="max_tokens",
+                help=f"Maximum tokens for output (model default: {default_max_tokens:,})"
+            )
+            
+            st.number_input(
+                "Only send N most recent images",
+                min_value=0,
+                key="only_n_most_recent_images",
+                help="To decrease the total tokens sent, remove older screenshots from the conversation",
+            )
+            
+            st.text_area(
+                "Custom System Prompt Suffix",
+                key="custom_system_prompt",
+                help="Additional instructions to append to the system prompt. see computer_use_demo/loop.py for the base system prompt.",
+                on_change=lambda: save_to_storage(
+                    "system_prompt", st.session_state.custom_system_prompt
+                ),
+            )
+            
+            st.checkbox("Hide screenshots", key="hide_images")
 
         if st.button("Reset", type="primary"):
             with st.spinner("Resetting..."):
@@ -182,6 +283,9 @@ async def main():
                         _render_message(
                             Sender.TOOL, st.session_state.tools[block["tool_use_id"]]
                         )
+                    elif isinstance(block, dict) and block.get("type") in ["thinking", "redacted_thinking"]:
+                        # Handle thinking blocks
+                        _render_message(message["role"], block)
                     else:
                         _render_message(
                             message["role"],
@@ -229,6 +333,9 @@ async def main():
                 ),
                 api_key=st.session_state.api_key,
                 only_n_most_recent_images=st.session_state.only_n_most_recent_images,
+                max_tokens=st.session_state.max_tokens,
+                enable_extended_thinking=st.session_state.enable_extended_thinking,
+                thinking_budget_tokens=st.session_state.thinking_budget_tokens,
             )
 
 
@@ -329,6 +436,13 @@ def _render_message(
         or message.__class__.__name__ == "ToolResult"
         or message.__class__.__name__ == "CLIResult"
     )
+    
+    # Check for thinking blocks
+    is_thinking_block = (hasattr(message, 'type') and getattr(message, 'type') == 'thinking') or \
+                       (isinstance(message, dict) and message.get('type') == 'thinking')
+    is_redacted_thinking = (hasattr(message, 'type') and getattr(message, 'type') == 'redacted_thinking') or \
+                          (isinstance(message, dict) and message.get('type') == 'redacted_thinking')
+    
     if not message or (
         is_tool_result
         and st.session_state.hide_images
@@ -336,8 +450,26 @@ def _render_message(
         and not hasattr(message, "output")
     ):
         return
+        
     with st.chat_message(sender):
-        if is_tool_result:
+        if is_thinking_block:
+            # Render thinking blocks with special styling
+            thinking_content = getattr(message, 'thinking', '')
+            # Estimate token count for thinking content (rough approximation)
+            estimated_tokens = len(thinking_content.split()) * 1.3 if thinking_content else 0
+            
+            with st.expander(f"🧠 Claude's Thinking Process (~{int(estimated_tokens)} tokens)", expanded=False):
+                if thinking_content:
+                    st.markdown(thinking_content)
+                else:
+                    st.info("Thinking content not available (may be summarized)")
+                if hasattr(message, 'signature'):
+                    st.caption("✅ Verified thinking block")
+        elif is_redacted_thinking:
+            # Render redacted thinking blocks
+            with st.expander("🧠 Claude's Thinking Process (Redacted)", expanded=False):
+                st.info("Some of Claude's internal reasoning has been automatically encrypted for safety reasons. This doesn't affect the quality of responses.")
+        elif is_tool_result:
             message = cast(ToolResult, message)
             if message.output:
                 if message.__class__.__name__ == "CLIResult":

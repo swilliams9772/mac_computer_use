@@ -24,7 +24,7 @@ from anthropic.types.beta import (
 
 from tools import BashTool, ComputerTool, EditTool, ToolCollection, ToolResult
 
-BETA_FLAG = "computer-use-2024-10-22"
+BETA_FLAG = "computer-use-2025-01-24"  # Updated to latest version
 
 
 class APIProvider(StrEnum):
@@ -33,12 +33,83 @@ class APIProvider(StrEnum):
     VERTEX = "vertex"
 
 
+# Updated model mappings to include Claude 3.7 and Claude 4
 PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
-    APIProvider.ANTHROPIC: "claude-3-5-sonnet-20241022",
-    APIProvider.BEDROCK: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    APIProvider.VERTEX: "claude-3-5-sonnet-v2@20241022",
+    APIProvider.ANTHROPIC: "claude-sonnet-4-20250514",  # Default to Claude 4 Sonnet
+    APIProvider.BEDROCK: "anthropic.claude-sonnet-4-20250514-v1:0",
+    APIProvider.VERTEX: "claude-sonnet-4@20250514",
 }
 
+# Available models by provider
+AVAILABLE_MODELS: dict[APIProvider, list[tuple[str, str]]] = {
+    APIProvider.ANTHROPIC: [
+        ("claude-opus-4-20250514", "Claude Opus 4 - Most capable"),
+        ("claude-sonnet-4-20250514", "Claude Sonnet 4 - High performance"),
+        ("claude-3-7-sonnet-20250219", "Claude Sonnet 3.7 - With extended thinking"),
+        ("claude-3-5-sonnet-20241022", "Claude Sonnet 3.5 v2 - Previous generation"),
+        ("claude-3-5-haiku-20241022", "Claude Haiku 3.5 - Fast and efficient"),
+        ("claude-3-opus-20240229", "Claude Opus 3 - Legacy"),
+    ],
+    APIProvider.BEDROCK: [
+        ("anthropic.claude-opus-4-20250514-v1:0", "Claude Opus 4 - Most capable"),
+        ("anthropic.claude-sonnet-4-20250514-v1:0", "Claude Sonnet 4 - High performance"),
+        ("anthropic.claude-3-7-sonnet-20250219-v1:0", "Claude Sonnet 3.7 - With extended thinking"),
+        ("anthropic.claude-3-5-sonnet-20241022-v2:0", "Claude Sonnet 3.5 v2"),
+        ("anthropic.claude-3-5-haiku-20241022-v1:0", "Claude Haiku 3.5"),
+        ("anthropic.claude-3-opus-20240229-v1:0", "Claude Opus 3 - Legacy"),
+    ],
+    APIProvider.VERTEX: [
+        ("claude-opus-4@20250514", "Claude Opus 4 - Most capable"),
+        ("claude-sonnet-4@20250514", "Claude Sonnet 4 - High performance"),
+        ("claude-3-7-sonnet@20250219", "Claude Sonnet 3.7 - With extended thinking"),
+        ("claude-3-5-sonnet-v2@20241022", "Claude Sonnet 3.5 v2"),
+        ("claude-3-5-haiku@20241022", "Claude Haiku 3.5"),
+        ("claude-3-opus@20240229", "Claude Opus 3 - Legacy"),
+    ],
+}
+
+# Models that support extended thinking
+EXTENDED_THINKING_MODELS = {
+    "claude-opus-4-20250514",
+    "claude-sonnet-4-20250514", 
+    "claude-3-7-sonnet-20250219",
+    "anthropic.claude-opus-4-20250514-v1:0",
+    "anthropic.claude-sonnet-4-20250514-v1:0",
+    "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "claude-opus-4@20250514",
+    "claude-sonnet-4@20250514",
+    "claude-3-7-sonnet@20250219",
+}
+
+# Max tokens by model
+MODEL_MAX_TOKENS = {
+    "claude-opus-4-20250514": 32000,
+    "claude-sonnet-4-20250514": 64000,
+    "claude-3-7-sonnet-20250219": 64000,
+    "claude-3-5-sonnet-20241022": 8192,
+    "claude-3-5-haiku-20241022": 8192,
+    "claude-3-opus-20240229": 4096,
+}
+
+def get_max_tokens_for_model(model: str) -> int:
+    """Get the maximum tokens for a given model."""
+    # Extract base model name for Bedrock/Vertex models
+    base_model = model
+    if "anthropic." in model:
+        base_model = model.replace("anthropic.", "").replace("-v1:0", "").replace("-v2:0", "")
+    elif "@" in model:
+        base_model = model.split("@")[0]
+        if base_model == "claude-3-5-sonnet-v2":
+            base_model = "claude-3-5-sonnet-20241022"
+        elif "-" in base_model and "@" not in base_model:
+            # Handle format like claude-opus-4@20250514 -> claude-opus-4-20250514
+            base_model = base_model.replace("@", "-")
+    
+    return MODEL_MAX_TOKENS.get(base_model, 4096)
+
+def model_supports_extended_thinking(model: str) -> bool:
+    """Check if a model supports extended thinking."""
+    return model in EXTENDED_THINKING_MODELS
 
 # This system prompt is optimized for the Docker environment in this repository and
 # specific tool combinations enabled.
@@ -95,6 +166,39 @@ SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
 * The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
 </SYSTEM_CAPABILITY>"""
 
+# Tool version mappings based on model capabilities
+def get_tool_versions_for_model(model: str) -> dict[str, str]:
+    """Get the appropriate tool versions for a given model."""
+    # Claude 4 models (Opus and Sonnet)
+    if any(claude4_model in model for claude4_model in ["claude-opus-4-", "claude-sonnet-4-"]):
+        return {
+            "computer": "computer_20250124",
+            "text_editor": "text_editor_20250429", 
+            "bash": "bash_20250124",
+            "beta_flag": "computer-use-2025-01-24"
+        }
+    # Claude 3.7 Sonnet
+    elif "claude-3-7-sonnet" in model:
+        return {
+            "computer": "computer_20250124",
+            "text_editor": "text_editor_20250124",
+            "bash": "bash_20250124", 
+            "beta_flag": "computer-use-2025-01-24"
+        }
+    # Claude 3.5 models (fallback to older versions)
+    else:
+        return {
+            "computer": "computer_20241022",
+            "text_editor": "text_editor_20241022",
+            "bash": "bash_20241022",
+            "beta_flag": "computer-use-2024-10-22"
+        }
+
+def get_beta_flag_for_model(model: str) -> str:
+    """Get the appropriate beta flag for a given model."""
+    tool_versions = get_tool_versions_for_model(model)
+    return tool_versions["beta_flag"]
+
 async def sampling_loop(
     *,
     model: str,
@@ -106,46 +210,65 @@ async def sampling_loop(
     api_response_callback: Callable[[APIResponse[BetaMessage]], None],
     api_key: str,
     only_n_most_recent_images: int | None = None,
-    max_tokens: int = 4096,
+    max_tokens: int | None = None,
+    enable_extended_thinking: bool = False,
+    thinking_budget_tokens: int = 10000,
 ):
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
     """
+    # Get appropriate tool versions for the model
+    tool_versions = get_tool_versions_for_model(model)
+    
     tool_collection = ToolCollection(
-        ComputerTool(),
-        BashTool(),
-        EditTool(),
+        ComputerTool(api_version=tool_versions["computer"]),
+        BashTool(api_version=tool_versions["bash"]),
+        EditTool(api_version=tool_versions["text_editor"]),
     )
     system = (
         f"{SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}"
     )
+
+    # Set default max_tokens based on model if not provided
+    if max_tokens is None:
+        max_tokens = get_max_tokens_for_model(model)
 
     while True:
         if only_n_most_recent_images:
             _maybe_filter_to_n_most_recent_images(messages, only_n_most_recent_images)
 
         if provider == APIProvider.ANTHROPIC:
-            client = Anthropic(api_key=api_key)
+            client = Anthropic(api_key=api_key, timeout=300.0)  # 5 minute timeout
         elif provider == APIProvider.VERTEX:
-            client = AnthropicVertex()
+            client = AnthropicVertex(timeout=300.0)
         elif provider == APIProvider.BEDROCK:
-            client = AnthropicBedrock()
+            client = AnthropicBedrock(timeout=300.0)
 
-        # Call the API
+        # Prepare API call parameters
+        api_params = {
+            "max_tokens": max_tokens,
+            "messages": messages,
+            "model": model,
+            "system": system,
+            "tools": tool_collection.to_params(),
+            "betas": [get_beta_flag_for_model(model)],
+        }
+
+        # Add extended thinking parameters if supported and enabled
+        if enable_extended_thinking and model_supports_extended_thinking(model):
+            api_params["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": thinking_budget_tokens
+            }
+
+        # Call the API with explicit stream=False and proper timeout to avoid SDK streaming recommendation
         # we use raw_response to provide debug information to streamlit. Your
         # implementation may be able call the SDK directly with:
         # `response = client.messages.create(...)` instead.
-        raw_response = client.beta.messages.with_raw_response.create(
-            max_tokens=max_tokens,
-            messages=messages,
-            model=model,
-            system=system,
-            tools=tool_collection.to_params(),
-            betas=[BETA_FLAG],
-        )
-
+        api_params["stream"] = False
+        raw_response = client.beta.messages.with_raw_response.create(**api_params)
+        
         api_response_callback(cast(APIResponse[BetaMessage], raw_response))
-
         response = raw_response.parse()
 
         messages.append(
