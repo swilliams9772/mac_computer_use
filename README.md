@@ -1,265 +1,363 @@
-# Anthropic Computer Use (for Mac) - Enhanced with Claude 4 🚀
+# Claude Computer Use for Mac 🚀
 
-[Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) is a beta Anthropic feature which runs a Docker image with Ubuntu and controls it. This **enhanced fork** allows you to run it natively on macOS with **Claude 3.7 and Claude 4 support**, providing direct system control through native macOS commands and utilities.
+Enhanced version of [Mac Computer Use](https://github.com/deedy/mac_computer_use), a fork of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) optimized for macOS.
 
-> [!CAUTION]
-> This comes with obvious risks. The Anthropic agent can control everything on your Mac. Please be careful.
-> Anthropic's new Claude models refuse to do unsafe things like purchase items or download illegal content.
+## 🆕 What's New
 
-## 🆕 New Features (Enhanced Version)
+### Claude 4 Support
+- **Claude Opus 4** - Most capable model for complex reasoning and coding
+- **Claude Sonnet 4** - High-performance model with balanced capabilities
+- Up to 64k output tokens (Sonnet 4) and 32k (Opus 4)
 
-### 🔄 **Automatic Tool Version Selection** (Latest Update)
-- **Smart API Versioning** - Automatically selects the correct tool versions based on your chosen model
-- **Future-Proof** - Always uses the latest available tool capabilities for each Claude model
-- **Backward Compatible** - Maintains support for older Claude 3.5 workflows unchanged
+### Extended Thinking
+- Step-by-step reasoning for complex tasks
+- Configurable thinking budget (1k-32k+ tokens)
+- Transparent problem-solving process
 
-### 🧠 **Claude 4 Support** 
-- **Latest Models** - Access to Claude Opus 4 & Sonnet 4 (May 2025)
-- **Enhanced Computer Actions** - New actions like `triple_click`, `scroll`, `hold_key`, `wait`
-- **Advanced Text Editor** - `str_replace_based_edit_tool` with optimized performance
-- **64k Output Tokens** - Handle larger, more complex tasks
+### Enhanced macOS Integration
+- **AppleScript Tool** - Native macOS application automation
+- **Silicon Tool** - Apple Silicon hardware monitoring
+- **Shortcuts Integration** - Run macOS Shortcuts via command line
+- **System Profiler** - Detailed hardware information
 
-### 🔬 **Extended Thinking**
-- **Step-by-Step Reasoning** - Claude's transparent thought process for complex tasks
-- **Interleaved Thinking** - Think between tool calls for better decision-making
-- **Adjustable Budget** - Control thinking depth (1k-32k tokens)
+### Smart Model Selection
+- Easy switching between Claude 3.5, 3.7, and 4 models
+- Automatic tool version management
+- Model-specific feature detection
 
-### 🎯 **Smart Model Selection**
-- **Easy Switching** - Seamless transition between Claude 3.5, 3.7, and 4 models
-- **Optimized Performance** - Each model gets its ideal tool configuration
-- **Latest API Compliance** - Uses `computer-use-2025-01-24` beta flag for Claude 4/3.7
+## 🏗️ Architecture
 
-## Core Features
+### Supported Models
 
-- **Native macOS Integration** - No Docker required, direct system control
-- **Advanced Computer Actions** - Enhanced mouse, keyboard, and screen interaction
-- **Multi-Provider Support** - Anthropic, AWS Bedrock, Google Vertex AI
-- **Modern Streamlit UI** - Enhanced interface with debugging tools
-- **Automatic Scaling** - Screen resolution optimization
-- **File System Integration** - Advanced text editing and file management
-
-## Prerequisites
-
-- macOS Sonoma 15.7 or later
-- Python 3.12+
-- Homebrew (for installing additional dependencies)
-- cliclick (`brew install cliclick`) - Required for mouse and keyboard control
-
-## Setup Instructions
-
-1. Clone the repository and navigate to it:
-
-```bash
-git clone https://github.com/deedy/mac_computer_use.git
-cd mac_computer_use
-```
-
-2. Run the automated setup script (recommended):
-
-```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-This will:
-- Install Python 3.12 if needed
-- Create a virtual environment
-- Install all dependencies
-- Set up the activation script
-
-3. Alternative manual setup:
-
-```bash
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-## Running the Demo
-
-### 🎯 Quick Start with Claude 4
-
-1. Set your API key and run:
-
-```bash
-export ANTHROPIC_API_KEY=your_api_key_here
-export WIDTH=1280
-export HEIGHT=800
-streamlit run streamlit.py
-```
-
-2. In the sidebar:
-   - Select **Claude Sonnet 4** or **Claude Opus 4** for best performance
-   - Enable **Extended Thinking** for complex reasoning tasks
-   - Adjust the thinking budget for thorough analysis
-
-### Environment Configuration
-
-Create a `.env` file for persistent settings:
-
-```env
-API_PROVIDER=anthropic
-ANTHROPIC_API_KEY=your_api_key_here
-WIDTH=1280
-HEIGHT=800
-DISPLAY_NUM=1
-```
-
-Available API providers:
-- `anthropic` - Direct Anthropic API (recommended)
-- `bedrock` - AWS Bedrock
-- `vertex` - Google Cloud Vertex AI
-
-## Model Selection Guide
-
-### 🚀 **Recommended: Claude 4 Models**
-
-| Model | Best For | Max Output | Tools | Extended Thinking |
-|-------|----------|------------|-------|-------------------|
+| Model | Use Case | Max Output | Tool Versions | Extended Thinking |
+|-------|----------|------------|---------------|-------------------|
 | **Claude Opus 4** | Most complex tasks, coding, analysis | 32k tokens | `*_20250124` + `text_editor_20250429` | ✅ |
 | **Claude Sonnet 4** | High performance, balanced tasks | 64k tokens | `*_20250124` + `text_editor_20250429` | ✅ |
+| **Claude Sonnet 3.7** | Extended thinking capabilities | 64k tokens | `*_20250124` + `text_editor_20250124` | ✅ |
+| **Claude Sonnet 3.5 v2** | Previous generation intelligent model | 8k tokens | `*_20241022` | ❌ |
+| **Claude Haiku 3.5** | Fast and efficient processing | 8k tokens | `*_20241022` | ❌ |
 
-### 🧪 **Experimental: Claude 3.7**
+### Tool Collection
 
-| Model | Best For | Max Output | Tools | Extended Thinking |
-|-------|----------|------------|-------|-------------------|
-| **Claude 3.7 Sonnet** | Extended thinking experiments | 64k tokens | `*_20250124` | ✅ |
+#### Core Tools (Anthropic)
+- **Computer Tool** - Screen capture, mouse/keyboard control
+- **Text Editor** - File editing with str_replace operations
+- **Bash Tool** - Command line execution
 
-### 🔄 **Legacy: Claude 3.5 Models**
+#### Custom Tools (macOS)
+- **AppleScript Tool** - macOS application automation
+- **Silicon Tool** - Apple Silicon hardware monitoring
 
-| Model | Best For | Max Output | Tools | Extended Thinking |
-|-------|----------|------------|-------|-------------------|
-| **Claude 3.5 Sonnet** | General purpose, reliable | 8k tokens | `*_20241022` | ❌ |
-| **Claude 3.5 Haiku** | Fast responses, simple tasks | 8k tokens | `*_20241022` | ❌ |
+### Tool Version Matrix
 
-## 🔧 Enhanced Computer Actions (Claude 4/3.7)
+#### Claude 4 Models (Latest)
+- Computer: `computer_20250124` 
+- Text Editor: `text_editor_20250429` (no `undo_edit`)
+- Bash: `bash_20250124`
+- AppleScript: `custom`
+- Silicon: `custom`
 
-The latest tool versions include powerful new computer actions:
+#### Claude 3.7 Sonnet
+- Computer: `computer_20250124`
+- Text Editor: `text_editor_20250124` (includes `undo_edit`)
+- Bash: `bash_20250124`
+- AppleScript: `custom`
+- Silicon: `custom`
 
-### **New Actions Available:**
-- **`triple_click`** - Select entire paragraphs/lines of text
-- **`scroll`** - Precise scrolling with direction and amount control
-- **`hold_key`** - Hold keys for specified durations
-- **`wait`** - Programmatic pauses for timing control
-- **`left_mouse_down` / `left_mouse_up`** - Separate mouse press/release actions
+#### Claude 3.5 Models (Legacy)
+- Computer: `computer_20241022`
+- Text Editor: `text_editor_20241022`
+- Bash: `bash_20241022`
+- AppleScript: `custom`
+- Silicon: `custom`
 
-### **Enhanced Parameters:**
-- **`scroll_direction`** - up, down, left, right
-- **`scroll_amount`** - Number of scroll clicks
-- **`duration`** - For hold_key and wait actions
-- **`start_coordinate`** - Enhanced drag operations
+## 🚀 Quick Start
 
-## Extended Thinking Feature
+### Prerequisites
+- macOS 10.14+ (Monterey+ recommended)
+- Python 3.11+
+- Anthropic API key
+- Homebrew (recommended)
 
-When using Claude 4 or 3.7 models, you can enable **Extended Thinking** for more thorough reasoning:
+### Installation
 
-1. **Enable in Sidebar**: Check "Enable Extended Thinking"
-2. **Set Budget**: Adjust thinking budget (1k-32k tokens)
-3. **View Process**: Claude's reasoning appears in expandable sections
-
-**Benefits:**
-- Step-by-step problem solving
-- Better handling of complex computer tasks
-- More reliable decision making
-- Transparent reasoning process
-
-## Screen Size Considerations
-
-Recommended resolutions for optimal performance:
-
-- **Preferred**: 1280x800 (16:10) - Best balance
-- **Alternative**: 1024x768 (4:3) - Classic
-- **Widescreen**: 1366x768 (~16:9) - Modern
-
-Higher resolutions are automatically scaled down to optimize model performance.
-
+#### Quick Setup (Recommended)
 ```bash
-export WIDTH=1280
-export HEIGHT=800
-streamlit run streamlit.py
+# Clone the repository
+git clone <repository-url>
+cd mac_computer_use-1
+
+# Run the automated setup script
+./setup.sh
+
+# The script will automatically:
+# - Install Homebrew (if needed)
+# - Install Python 3.11+ and dependencies
+# - Create virtual environment
+# - Install all requirements
+# - Create activation helper script
 ```
 
-## Advanced Configuration
+#### Manual Setup
+```bash
+# Clone the repository
+git clone <repository-url>
+cd mac_computer_use-1
 
-### Custom System Prompts
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
 
-Add custom instructions in the sidebar under "Advanced Settings" to customize Claude's behavior for specific tasks.
+# Install dependencies
+pip install -r requirements.txt
 
-### Token Management
+# Set up API key
+export ANTHROPIC_API_KEY="your-api-key-here"
 
-- **Auto-scaling**: Max tokens automatically set based on model
-- **Manual override**: Adjust in Advanced Settings
-- **Thinking budget**: Higher budgets enable deeper reasoning
+# Run the Streamlit app
+streamlit run app.py
 
-### Multiple Providers
+# OR run the CLI version
+python cli.py
+```
 
-Switch between providers in the sidebar:
-- **Anthropic**: Latest models, extended thinking
-- **Bedrock**: Enterprise AWS integration  
-- **Vertex**: Google Cloud integration
+### CLI Usage
 
-## 🔄 Tool Version Management
+The CLI version provides a terminal-based interface with advanced features:
 
-This implementation automatically selects the optimal tool versions:
+```bash
+# Basic usage (interactive model selection)
+python cli.py
 
-### **Claude 4 Models (Opus/Sonnet 4)**
-- Computer Tool: `computer_20250124` 
-- Text Editor: `text_editor_20250429` (no `undo_edit`)
-- Bash Tool: `bash_20250124`
-- Beta Flag: `computer-use-2025-01-24`
+# Specific model with extended thinking
+python cli.py --model claude-3-7-sonnet-20250219 --thinking-budget 15000
 
-### **Claude 3.7 Sonnet**
-- Computer Tool: `computer_20250124`
-- Text Editor: `text_editor_20250124` (with `undo_edit`)
-- Bash Tool: `bash_20250124` 
-- Beta Flag: `computer-use-2025-01-24`
+# Load previous session
+python cli.py --load-session
 
-### **Claude 3.5 Models (Legacy)**
-- Computer Tool: `computer_20241022`
-- Text Editor: `text_editor_20241022` (with `undo_edit`)
-- Bash Tool: `bash_20241022`
-- Beta Flag: `computer-use-2024-10-22`
+# Full configuration
+python cli.py \
+  --model claude-sonnet-4-20250514 \
+  --thinking-budget 20000 \
+  --max-tokens 8192 \
+  --system-prompt "You are an expert macOS automation assistant."
+```
 
-## Troubleshooting
+#### CLI Features
+- **🧠 Extended Thinking** - Step-by-step reasoning display
+- **💾 Session Persistence** - Save/load conversations
+- **⚡ Progress Indicators** - Visual feedback for operations
+- **🛠️ Error Recovery** - Smart error handling with retry options
+- **📊 Status Tracking** - Real-time model and session status
+- **🎨 Smart Output** - Automatic formatting and truncation
+
+#### CLI Commands
+Use these during CLI sessions:
+- `/help` - Show available commands
+- `/save` - Save current session
+- `/load` - Load saved session
+- `/clear` - Clear conversation
+- `/status` - Show configuration
+- `/exit` - Exit with optional save
+
+### Environment Setup
+
+```bash
+# Install system dependencies
+brew install cliclick
+
+# Optional: Enable accessibility permissions
+# System Preferences > Security & Privacy > Privacy > Accessibility
+# Add Terminal and Python to allowed applications
+```
+
+## 🔧 Configuration
+
+### Model Selection
+Choose your model based on your needs:
+
+- **Claude Opus 4** - Complex reasoning, advanced coding, research
+- **Claude Sonnet 4** - Balanced performance for most tasks
+- **Claude Sonnet 3.7** - Extended thinking, complex problem solving
+- **Claude Haiku 3.5** - Fast, lightweight tasks
+
+### Extended Thinking
+When enabled, Claude will show its step-by-step reasoning:
+
+```python
+# Configuration options
+enable_extended_thinking = True
+thinking_budget_tokens = 10000  # 1k-32k+ recommended
+```
+
+### Custom Tools
+The system includes custom macOS tools:
+
+```python
+# AppleScript automation
+applescript_tool.execute(
+    script='display dialog "Hello from Claude!"',
+    application="Finder"  # Optional target
+)
+
+# Apple Silicon monitoring
+silicon_tool.monitor(
+    action="performance",  # performance, thermal, memory, system_info
+    target=None
+)
+```
+
+## 📁 Project Structure
+
+```
+mac_computer_use-1/
+├── tools/                      # Tool implementations
+│   ├── __init__.py            # Tool exports
+│   ├── base.py                # Base tool classes
+│   ├── collection.py          # Tool collection manager
+│   ├── computer.py            # Computer use tool
+│   ├── edit.py                # Text editor tool
+│   ├── bash.py                # Bash execution tool
+│   ├── applescript.py         # AppleScript automation (custom)
+│   ├── silicon.py             # Apple Silicon monitoring (custom)
+│   └── run.py                 # Command execution utilities
+├── loop.py                    # Main sampling loop
+├── app.py                     # Streamlit UI
+├── cli.py                     # CLI interface
+├── requirements.txt           # Python dependencies
+├── Dockerfile                 # Container configuration
+└── README.md                  # This file
+```
+
+## 🎯 Usage Examples
+
+### Basic Computer Use
+```python
+# Take a screenshot and analyze
+# Claude can see the screen and interact with applications
+
+# Navigate to a website
+# Claude can control mouse and keyboard
+
+# Edit files
+# Claude can read, write, and modify files
+```
+
+### AppleScript Automation
+```python
+# Control macOS applications
+applescript_tool.execute(
+    script='''
+    tell application "Safari"
+        make new document
+        set URL of current tab to "https://anthropic.com"
+    end tell
+    ''',
+    application="Safari"
+)
+```
+
+### System Monitoring
+```python
+# Check Apple Silicon performance
+silicon_tool.monitor(action="performance")
+
+# Monitor thermal status
+silicon_tool.monitor(action="thermal")
+
+# Check memory usage
+silicon_tool.monitor(action="memory")
+```
+
+## 🔐 Security & Privacy
+
+- **Screen Access** - Required for computer tool functionality
+- **Accessibility** - Needed for mouse/keyboard control
+- **API Keys** - Stored locally, never transmitted except to Anthropic
+- **Local Execution** - All tools run locally on your machine
+
+## 🐛 Troubleshooting
 
 ### Common Issues
 
-1. **Permission Denied**: Ensure cliclick is installed (`brew install cliclick`)
-2. **API Errors**: Verify your API key is valid and has sufficient credits
-3. **Screen Capture**: Grant screen recording permissions in System Preferences
-4. **Extended Thinking**: Only works with Claude 4 and 3.7 models
-5. **Tool Errors**: Check that you're using a supported model for enhanced actions
+1. **Tool Type Validation Error**
+   ```
+   Input tag 'applescript_20250124' found using 'type' does not match any of the expected tags
+   ```
+   **Solution**: Custom tools now use `type: "custom"` - this is fixed in the latest version.
+
+2. **Extended Thinking Not Available**
+   ```
+   Model does not support extended thinking
+   ```
+   **Solution**: Use Claude 3.7, Sonnet 4, or Opus 4 models.
+
+3. **Max Tokens Exceeded**
+   ```
+   prompt tokens + max_tokens exceeds context window
+   ```
+   **Solution**: Reduce `max_tokens` or enable image filtering.
 
 ### Performance Tips
 
-- Use **Claude Sonnet 4** for best speed/performance balance
-- Enable **Extended Thinking** only for complex tasks
-- Adjust **thinking budget** based on task complexity
-- Use **image filtering** to reduce token usage
-- **Claude 4** models work best with new enhanced computer actions
+- Use **Claude Haiku 3.5** for fast, simple tasks
+- Enable **Extended Thinking** for complex reasoning
+- Set appropriate **thinking budget** (10k default, 32k+ for complex tasks)
+- Use **image filtering** to manage context window
 
-## API Documentation
+## 🛠️ Development
 
-This implementation uses the latest Anthropic API features:
+### Adding Custom Tools
 
-- [Claude 4 Models](https://docs.anthropic.com/en/docs/about-claude/models) - Latest model capabilities
-- [Extended Thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking) - Advanced reasoning
-- [Computer Use API](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use) - Enhanced computer control
-- [Tool Use Documentation](https://docs.anthropic.com/en/docs/build-with-claude/tool-use) - Latest tool versions
+1. Create tool class in `tools/` directory
+2. Inherit from `BaseAnthropicTool`
+3. Set `api_type = "custom"`
+4. Implement `__call__` and `to_params` methods
+5. Add to `ToolCollection` in `loop.py`
 
-> [!IMPORTANT]
-> This implementation automatically uses the latest tool versions and beta flags. It's fully compliant with the current Anthropic API as of May 2025. The tools adapt to your selected model for optimal performance.
+### Testing
 
-## Contributing
+```bash
+# Run basic tests
+python -m pytest tests/
 
-This enhanced version builds upon the original Mac Computer Use project. Contributions are welcome for:
+# Test specific tool
+python -c "from tools import AppleScriptTool; print('✅ Import successful')"
 
-- Additional model integrations
-- Enhanced computer actions
-- UI/UX improvements  
-- Performance optimizations
-- Documentation updates
+# Verify API connectivity
+python -c "import anthropic; print('✅ Anthropic SDK ready')"
+```
 
-## License
+## 📋 Requirements
 
-Same license as the original Anthropic Computer Use demo.
+### System Requirements
+- macOS 10.14+ (Monterey+ recommended for full features)
+- Python 3.11+
+- 8GB+ RAM (16GB+ recommended for extended thinking)
+- Internet connection for API calls
+
+### Python Dependencies
+See `requirements.txt` for complete list:
+- anthropic>=0.40.0
+- streamlit>=1.40.0
+- pillow>=10.0.0
+- And others...
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the same terms as the original Anthropic Computer Use demo.
+
+## 🙏 Acknowledgments
+
+- [Anthropic](https://anthropic.com) for Claude and Computer Use tools
+- [Original Computer Use Demo](https://github.com/anthropics/anthropic-quickstarts)
+- [Mac Computer Use](https://github.com/deedy/mac_computer_use) fork
+- macOS and Apple Silicon optimization community

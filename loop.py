@@ -22,7 +22,7 @@ from anthropic.types.beta import (
     BetaToolResultBlockParam,
 )
 
-from tools import BashTool, ComputerTool, EditTool, ToolCollection, ToolResult
+from tools import AppleScriptTool, BashTool, ComputerTool, EditTool, SiliconTool, ToolCollection, ToolResult
 
 BETA_FLAG = "computer-use-2025-01-24"  # Updated to latest version
 
@@ -81,14 +81,16 @@ EXTENDED_THINKING_MODELS = {
     "claude-3-7-sonnet@20250219",
 }
 
-# Max tokens by model
+# Max tokens by model - aligned with official Anthropic documentation
 MODEL_MAX_TOKENS = {
-    "claude-opus-4-20250514": 32000,
-    "claude-sonnet-4-20250514": 64000,
-    "claude-3-7-sonnet-20250219": 64000,
-    "claude-3-5-sonnet-20241022": 8192,
-    "claude-3-5-haiku-20241022": 8192,
-    "claude-3-opus-20240229": 4096,
+    "claude-opus-4-20250514": 32000,     # Claude Opus 4: 32k max output
+    "claude-sonnet-4-20250514": 64000,   # Claude Sonnet 4: 64k max output  
+    "claude-3-7-sonnet-20250219": 64000, # Claude Sonnet 3.7: 64k max output
+    "claude-3-5-sonnet-20241022": 8192,  # Claude Sonnet 3.5 v2: 8k max output
+    "claude-3-5-sonnet-20240620": 8192,  # Claude Sonnet 3.5 v1: 8k max output
+    "claude-3-5-haiku-20241022": 8192,   # Claude Haiku 3.5: 8k max output
+    "claude-3-opus-20240229": 4096,      # Claude Opus 3: 4k max output
+    "claude-3-haiku-20240307": 4096,     # Claude Haiku 3: 4k max output
 }
 
 def get_max_tokens_for_model(model: str) -> int:
@@ -131,24 +133,26 @@ def model_supports_extended_thinking(model: str) -> bool:
 # * If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext (available via homebrew) to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
 # </IMPORTANT>"""
 SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
-* You are utilizing a macOS Sonoma 15.7 environment using {platform.machine()} architecture with command line internet access.
+* You are utilizing a macOS environment using {platform.machine()} architecture with command line internet access.
 * Package management:
   - Use homebrew for package installation
   - Use curl for HTTP requests
   - Use npm/yarn for Node.js packages
   - Use pip for Python packages
 
-* Browser automation available via Playwright:
-  - Supports Chrome, Firefox, and WebKit
-  - Can handle JavaScript-heavy applications
-  - Capable of screenshots, navigation, and interaction
-  - Handles dynamic content loading
-
 * System automation:
   - cliclick for simulating mouse/keyboard input
-  - osascript for AppleScript commands
+  - osascript for AppleScript commands (also available via dedicated applescript tool)
   - launchctl for managing services
   - defaults for reading/writing system preferences
+  - AppleScript tool for high-level macOS application automation
+  - shortcuts command for running macOS Shortcuts
+  - system_profiler for detailed hardware information
+
+* Apple Silicon optimizations (if available):
+  - Unified memory architecture
+  - Hardware-accelerated video/image processing
+  - Native performance cores and efficiency cores
 
 * Development tools:
   - Standard Unix/Linux command line utilities
@@ -169,20 +173,24 @@ SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
 # Tool version mappings based on model capabilities
 def get_tool_versions_for_model(model: str) -> dict[str, str]:
     """Get the appropriate tool versions for a given model."""
-    # Claude 4 models (Opus and Sonnet)
+    # Claude 4 models (Opus and Sonnet) - Latest tool versions
     if any(claude4_model in model for claude4_model in ["claude-opus-4-", "claude-sonnet-4-"]):
         return {
             "computer": "computer_20250124",
-            "text_editor": "text_editor_20250429", 
+            "text_editor": "text_editor_20250429",  # Updated for Claude 4
             "bash": "bash_20250124",
+            "applescript": "custom",  # Custom tools always use "custom"
+            "silicon": "custom",      # Custom tools always use "custom"
             "beta_flag": "computer-use-2025-01-24"
         }
-    # Claude 3.7 Sonnet
+    # Claude 3.7 Sonnet - Supports extended thinking with older text editor
     elif "claude-3-7-sonnet" in model:
         return {
             "computer": "computer_20250124",
-            "text_editor": "text_editor_20250124",
-            "bash": "bash_20250124", 
+            "text_editor": "text_editor_20250124",  # Claude 3.7 uses older version
+            "bash": "bash_20250124",
+            "applescript": "custom",  # Custom tools always use "custom"
+            "silicon": "custom",      # Custom tools always use "custom"
             "beta_flag": "computer-use-2025-01-24"
         }
     # Claude 3.5 models (fallback to older versions)
@@ -191,6 +199,8 @@ def get_tool_versions_for_model(model: str) -> dict[str, str]:
             "computer": "computer_20241022",
             "text_editor": "text_editor_20241022",
             "bash": "bash_20241022",
+            "applescript": "custom",  # Custom tools always use "custom"
+            "silicon": "custom",      # Custom tools always use "custom"
             "beta_flag": "computer-use-2024-10-22"
         }
 
@@ -224,6 +234,8 @@ async def sampling_loop(
         ComputerTool(api_version=tool_versions["computer"]),
         BashTool(api_version=tool_versions["bash"]),
         EditTool(api_version=tool_versions["text_editor"]),
+        AppleScriptTool(api_version=tool_versions["applescript"]),
+        SiliconTool(api_version=tool_versions["silicon"]),
     )
     system = (
         f"{SYSTEM_PROMPT}{' ' + system_prompt_suffix if system_prompt_suffix else ''}"

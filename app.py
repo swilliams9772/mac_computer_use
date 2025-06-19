@@ -34,6 +34,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Configure page settings - MUST be the very first Streamlit command
+st.set_page_config(
+    page_title="Claude Computer Use for Mac",
+    page_icon="🚀",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': 'https://github.com/anthropics/anthropic-quickstarts',
+        'Report a bug': 'https://github.com/anthropics/anthropic-quickstarts/issues',
+        'About': "# Claude Computer Use for Mac 🚀\n\nEnhanced version with Claude 4 support, Extended Thinking, and native macOS integration."
+    }
+)
 
 CONFIG_DIR = PosixPath("~/.anthropic").expanduser()
 API_KEY_FILE = CONFIG_DIR / "api_key"
@@ -83,7 +95,7 @@ def setup_state():
     if "tools" not in st.session_state:
         st.session_state.tools = {}
     if "only_n_most_recent_images" not in st.session_state:
-        st.session_state.only_n_most_recent_images = 10
+        st.session_state.only_n_most_recent_images = 10  # Conservative default
     if "custom_system_prompt" not in st.session_state:
         st.session_state.custom_system_prompt = load_from_storage("system_prompt") or ""
     if "hide_images" not in st.session_state:
@@ -91,9 +103,10 @@ def setup_state():
     if "enable_extended_thinking" not in st.session_state:
         st.session_state.enable_extended_thinking = False
     if "thinking_budget_tokens" not in st.session_state:
-        st.session_state.thinking_budget_tokens = 10000
+        st.session_state.thinking_budget_tokens = 10000  # Standard default per documentation
     if "max_tokens" not in st.session_state:
         st.session_state.max_tokens = None
+
 
 
 def _reset_model():
@@ -109,18 +122,21 @@ async def main():
     st.markdown(STREAMLIT_STYLE, unsafe_allow_html=True)
 
     st.title("🚀 Claude Computer Use for Mac")
-    st.caption("Enhanced with Claude 3.7 & Claude 4 🧠")
+    st.caption("Enhanced with Claude 3.7 & Claude 4 🧠 • Optimized for macOS 💫")
 
     st.markdown("""
     This is an enhanced version of [Mac Computer Use](https://github.com/deedy/mac_computer_use), a fork of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) to work natively on Mac.
     
     **🆕 New Features:**
-    - **Claude 4 Support** - Most capable models with up to 64k output tokens
+    - **Claude 4 Support** - Most capable models with enhanced reasoning
     - **Extended Thinking** - Claude's step-by-step reasoning for complex tasks
     - **Smart Model Selection** - Easy switching between Claude 3.5, 3.7, and 4 models
     - **Enhanced UI** - Better model configuration and debugging tools
+    - **🍎 Apple Silicon Support** - Native performance on M-series chips
+    - **🔧 macOS Integration** - AppleScript automation and system tools
+    - **💾 Memory Efficient** - Optimized context window management
     
-    **⚡ Quick Start:** Select Claude Sonnet 4 or Opus 4 from the sidebar for the best experience!
+    **⚡ Quick Start:** Select Claude Sonnet 4 or Opus 4 from the sidebar for the best performance!
     """)
     
     # Show current model status
@@ -207,17 +223,19 @@ async def main():
                     st.slider(
                         "Thinking Budget (tokens)",
                         min_value=1024,
-                        max_value=32000,
+                        max_value=64000,  # Increased for M4 + 16GB
                         value=st.session_state.thinking_budget_tokens,
                         step=1024,
                         key="thinking_budget_tokens",
                         help="Maximum tokens Claude can use for internal reasoning"
                     )
-                    st.info("💡 Higher budgets allow more thorough analysis but increase latency and cost")
+                    st.info("💡 Higher budgets allow for more thorough analysis")
+
+
 
         # Advanced Settings
         with st.expander("⚙️ Advanced Settings", expanded=False):
-            # Max tokens override
+            # Max tokens override - enhanced for M4
             default_max_tokens = get_max_tokens_for_model(st.session_state.model)
             st.number_input(
                 "Max Output Tokens",
@@ -226,14 +244,16 @@ async def main():
                 value=st.session_state.max_tokens or default_max_tokens,
                 step=1000,
                 key="max_tokens",
-                help=f"Maximum tokens for output (model default: {default_max_tokens:,})"
+                help=f"Maximum tokens for output (default: {default_max_tokens:,})"
             )
             
             st.number_input(
-                "Only send N most recent images",
+                "Recent Images Cache",
                 min_value=0,
+                max_value=30,  # Conservative default
+                value=st.session_state.only_n_most_recent_images,
                 key="only_n_most_recent_images",
-                help="To decrease the total tokens sent, remove older screenshots from the conversation",
+                help="Number of recent screenshots to keep in memory",
             )
             
             st.text_area(
@@ -488,5 +508,5 @@ def _render_message(
             st.markdown(message)
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# Run the main function directly (Streamlit handles the async context)
+asyncio.run(main())
