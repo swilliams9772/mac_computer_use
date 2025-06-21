@@ -1,4 +1,4 @@
-from .base import CLIResult, ToolResult
+from .base import CLIResult, ToolResult, ToolFailure, ToolError
 from .bash import BashTool
 from .collection import ToolCollection
 from .computer import ComputerTool
@@ -15,4 +15,6 @@ __ALL__ = [
     SiliconTool,
     ToolCollection,
     ToolResult,
+    ToolFailure,
+    ToolError,
 ]

@@ -106,6 +106,15 @@ def setup_state():
         st.session_state.thinking_budget_tokens = 10000  # Standard default per documentation
     if "max_tokens" not in st.session_state:
         st.session_state.max_tokens = None
+    # Performance tracking
+    if "tool_usage_stats" not in st.session_state:
+        st.session_state.tool_usage_stats = {}
+    if "session_start_time" not in st.session_state:
+        st.session_state.session_start_time = datetime.now()
+    if "current_tool_execution" not in st.session_state:
+        st.session_state.current_tool_execution = None
+    if "api_timeout" not in st.session_state:
+        st.session_state.api_timeout = 120  # Default 2 minute timeout
 
 
 
@@ -139,12 +148,27 @@ async def main():
     **⚡ Quick Start:** Select Claude Sonnet 4 or Opus 4 from the sidebar for the best performance!
     """)
     
-    # Show current model status
+    # Enhanced model status with real-time info
     current_model = st.session_state.get('model', 'Not selected')
-    if model_supports_extended_thinking(current_model):
-        st.success(f"🎯 **Current Model:** {current_model} (Extended Thinking Supported)")
-    else:
-        st.info(f"🎯 **Current Model:** {current_model}")
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        if model_supports_extended_thinking(current_model):
+            st.success(f"🎯 **Current Model:** {current_model} (Extended Thinking Supported)")
+        else:
+            st.info(f"🎯 **Current Model:** {current_model}")
+    
+    with col2:
+        # Show current tool execution status
+        if st.session_state.current_tool_execution:
+            st.warning(f"⚡ Executing: {st.session_state.current_tool_execution}")
+        else:
+            # Show session statistics
+            total_tools_used = sum(st.session_state.tool_usage_stats.values()) if st.session_state.tool_usage_stats else 0
+            if total_tools_used > 0:
+                st.metric("Tools Used", total_tools_used)
+            else:
+                st.info("Ready 🚀")
     
 
     with st.sidebar:
@@ -247,6 +271,17 @@ async def main():
                 help=f"Maximum tokens for output (default: {default_max_tokens:,})"
             )
             
+            # API Timeout configuration
+            st.slider(
+                "API Timeout (seconds)",
+                min_value=30,
+                max_value=300,
+                value=120,
+                step=30,
+                key="api_timeout",
+                help="How long to wait for API responses. Lower values prevent long hangs but may timeout complex requests."
+            )
+            
             st.number_input(
                 "Recent Images Cache",
                 min_value=0,
@@ -266,6 +301,44 @@ async def main():
             )
             
             st.checkbox("Hide screenshots", key="hide_images")
+
+        # Performance Metrics Section
+        with st.expander("📊 Session Analytics", expanded=False):
+            # Session duration
+            session_duration = datetime.now() - st.session_state.session_start_time
+            st.metric("Session Duration", f"{session_duration.seconds // 60}m {session_duration.seconds % 60}s")
+            
+            # Total messages
+            total_messages = len(st.session_state.messages)
+            st.metric("Total Messages", total_messages)
+            
+            # Tool usage statistics
+            if st.session_state.tool_usage_stats:
+                st.markdown("**🔧 Tool Usage:**")
+                for tool_name, count in sorted(st.session_state.tool_usage_stats.items()):
+                    if tool_name != 'unknown':
+                        tool_icons = {
+                            'computer': '🖥️',
+                            'bash': '💻', 
+                            'str_replace_based_edit_tool': '📝',
+                            'applescript': '🍎',
+                            'silicon': '⚡'
+                        }
+                        icon = tool_icons.get(tool_name, '🔧')
+                        st.write(f"{icon} {tool_name.replace('_', ' ').title()}: {count} uses")
+            else:
+                st.info("No tools used yet")
+            
+            # System performance indicators
+            try:
+                import psutil
+                cpu_percent = psutil.cpu_percent(interval=1)
+                memory = psutil.virtual_memory()
+                st.markdown("**💾 System Performance:**")
+                st.write(f"• CPU: {cpu_percent}%")
+                st.write(f"• Memory: {memory.percent}% ({memory.available // (1024**3):.1f}GB free)")
+            except ImportError:
+                st.caption("Install psutil for system performance metrics")
 
         if st.button("Reset", type="primary"):
             with st.spinner("Resetting..."):
@@ -336,27 +409,49 @@ async def main():
             return
 
         with st.spinner("Running Agent..."):
-            # run the agent sampling loop with the newest message
-            st.session_state.messages = await sampling_loop(
-                system_prompt_suffix=st.session_state.custom_system_prompt,
-                model=st.session_state.model,
-                provider=st.session_state.provider,
-                messages=st.session_state.messages,
-                output_callback=partial(_render_message, Sender.BOT),
-                tool_output_callback=partial(
-                    _tool_output_callback, tool_state=st.session_state.tools
-                ),
-                api_response_callback=partial(
-                    _api_response_callback,
-                    tab=http_logs,
-                    response_state=st.session_state.responses,
-                ),
-                api_key=st.session_state.api_key,
-                only_n_most_recent_images=st.session_state.only_n_most_recent_images,
-                max_tokens=st.session_state.max_tokens,
-                enable_extended_thinking=st.session_state.enable_extended_thinking,
-                thinking_budget_tokens=st.session_state.thinking_budget_tokens,
-            )
+            try:
+                # run the agent sampling loop with the newest message
+                st.session_state.messages = await sampling_loop(
+                    system_prompt_suffix=st.session_state.custom_system_prompt,
+                    model=st.session_state.model,
+                    provider=st.session_state.provider,
+                    messages=st.session_state.messages,
+                    output_callback=partial(_render_message, Sender.BOT),
+                    tool_output_callback=partial(
+                        _tool_output_callback, tool_state=st.session_state.tools
+                    ),
+                    api_response_callback=partial(
+                        _api_response_callback,
+                        tab=http_logs,
+                        response_state=st.session_state.responses,
+                    ),
+                    api_key=st.session_state.api_key,
+                    only_n_most_recent_images=st.session_state.only_n_most_recent_images,
+                    max_tokens=st.session_state.max_tokens,
+                    enable_extended_thinking=st.session_state.enable_extended_thinking,
+                    thinking_budget_tokens=st.session_state.thinking_budget_tokens,
+                    api_timeout=st.session_state.api_timeout,
+                )
+            except TimeoutError as e:
+                st.error(f"**⏱️ Request Timeout:** {str(e)}")
+                st.info("💡 **Suggestions:** Increase the API timeout in Advanced Settings, reduce thinking budget, or try a simpler request.")
+                # Show timeout-specific help
+                with st.expander("🔧 Timeout Troubleshooting", expanded=True):
+                    st.markdown("""
+                    **Common solutions:**
+                    - Increase **API Timeout** to 180-300 seconds for complex tasks
+                    - Reduce **Thinking Budget** if using Extended Thinking (try 5000-8000 tokens)
+                    - Break complex requests into smaller steps
+                    - Check your internet connection
+                    - Switch to a faster model (e.g., Claude Haiku)
+                    """)
+            except Exception as e:
+                st.error(f"**❌ Agent Error:** {str(e)}")
+                st.info("💡 Try refreshing the page or checking your API key and model settings.")
+                # Log the error but don't crash the app
+                import traceback
+                with st.expander("🔍 Error Details", expanded=False):
+                    st.code(traceback.format_exc())
 
 
 def validate_auth(provider: APIProvider, api_key: str | None):
@@ -425,6 +520,17 @@ def _tool_output_callback(
 ):
     """Handle a tool output by storing it to state and rendering it."""
     tool_state[tool_id] = tool_output
+    
+    # Track tool usage statistics
+    tool_name = getattr(tool_output, 'tool_name', 'unknown')
+    if tool_name in st.session_state.tool_usage_stats:
+        st.session_state.tool_usage_stats[tool_name] += 1
+    else:
+        st.session_state.tool_usage_stats[tool_name] = 1
+    
+    # Clear current tool execution status
+    st.session_state.current_tool_execution = None
+    
     _render_message(Sender.TOOL, tool_output)
 
 
@@ -473,37 +579,137 @@ def _render_message(
         
     with st.chat_message(sender):
         if is_thinking_block:
-            # Render thinking blocks with special styling
+            # Enhanced thinking block rendering with better formatting
             thinking_content = getattr(message, 'thinking', '')
             # Estimate token count for thinking content (rough approximation)
             estimated_tokens = len(thinking_content.split()) * 1.3 if thinking_content else 0
             
             with st.expander(f"🧠 Claude's Thinking Process (~{int(estimated_tokens)} tokens)", expanded=False):
                 if thinking_content:
-                    st.markdown(thinking_content)
+                    # Better formatting for thinking content
+                    st.markdown("**Internal Reasoning:**")
+                    with st.container():
+                        st.markdown(thinking_content, unsafe_allow_html=False)
                 else:
                     st.info("Thinking content not available (may be summarized)")
                 if hasattr(message, 'signature'):
                     st.caption("✅ Verified thinking block")
         elif is_redacted_thinking:
-            # Render redacted thinking blocks
+            # Enhanced redacted thinking blocks
             with st.expander("🧠 Claude's Thinking Process (Redacted)", expanded=False):
-                st.info("Some of Claude's internal reasoning has been automatically encrypted for safety reasons. This doesn't affect the quality of responses.")
+                st.info("🔒 Some of Claude's internal reasoning has been automatically encrypted for safety reasons. This doesn't affect the quality of responses.")
         elif is_tool_result:
             message = cast(ToolResult, message)
+            
+            # Enhanced tool result rendering with better formatting
             if message.output:
                 if message.__class__.__name__ == "CLIResult":
-                    st.code(message.output)
+                    st.markdown("**💻 Command Output:**")
+                    st.code(message.output, language="bash")
                 else:
-                    st.markdown(message.output)
+                    # Check if output looks like structured data
+                    output = message.output
+                    if output.startswith('{') or output.startswith('['):
+                        try:
+                            import json
+                            parsed = json.loads(output)
+                            st.markdown("**📊 Structured Output:**")
+                            st.json(parsed)
+                        except:
+                            st.markdown("**📄 Tool Output:**")
+                            st.markdown(output)
+                    elif '===' in output or 'INFORMATION' in output.upper():
+                        # Structured report-like output
+                        st.markdown("**📋 Report:**")
+                        # Split by sections and format nicely
+                        sections = output.split('===')
+                        for i, section in enumerate(sections):
+                            if section.strip():
+                                if i == 0:
+                                    st.markdown(section.strip())
+                                else:
+                                    # Extract section title and content
+                                    lines = section.strip().split('\n')
+                                    if lines:
+                                        title = lines[0].strip()
+                                        content = '\n'.join(lines[1:]).strip()
+                                        if title:
+                                            st.markdown(f"**{title}**")
+                                        if content:
+                                            if any(bullet in content for bullet in ['•', '-', '*']):
+                                                st.markdown(content)
+                                            else:
+                                                st.text(content)
+                    else:
+                        st.markdown("**📄 Tool Output:**")
+                        st.markdown(output)
+                        
             if message.error:
-                st.error(message.error)
+                st.error(f"**❌ Error:** {message.error}")
+                
             if message.base64_image and not st.session_state.hide_images:
+                st.markdown("**📸 Screenshot:**")
                 st.image(base64.b64decode(message.base64_image))
+                
         elif isinstance(message, BetaTextBlock) or isinstance(message, TextBlock):
             st.write(message.text)
         elif isinstance(message, BetaToolUseBlock) or isinstance(message, ToolUseBlock):
-            st.code(f"Tool Use: {message.name}\nInput: {message.input}")
+            # Enhanced tool use display with better formatting
+            tool_name = message.name
+            tool_input = message.input
+            
+            # Get tool emoji/icon
+            tool_icons = {
+                'computer': '🖥️',
+                'bash': '💻', 
+                'str_replace_based_edit_tool': '📝',
+                'applescript': '🍎',
+                'silicon': '⚡'
+            }
+            
+            icon = tool_icons.get(tool_name, '🔧')
+            
+            with st.expander(f"{icon} **{tool_name.replace('_', ' ').title()}**", expanded=True):
+                st.markdown("**Input Parameters:**")
+                
+                # Format input based on tool type
+                if tool_name == 'computer':
+                    action = tool_input.get('action', 'Unknown')
+                    st.write(f"• **Action:** {action}")
+                    if 'coordinate' in tool_input:
+                        st.write(f"• **Coordinate:** {tool_input['coordinate']}")
+                    if 'text' in tool_input:
+                        st.write(f"• **Text:** `{tool_input['text']}`")
+                elif tool_name == 'bash':
+                    command = tool_input.get('command', '')
+                    st.code(command, language="bash")
+                elif tool_name == 'str_replace_based_edit_tool':
+                    st.write(f"• **Command:** {tool_input.get('command', 'Unknown')}")
+                    if 'path' in tool_input:
+                        st.write(f"• **File:** `{tool_input['path']}`")
+                    if 'file_text' in tool_input:
+                        st.write("• **Content Preview:**")
+                        content = tool_input['file_text']
+                        if len(content) > 200:
+                            st.code(content[:200] + "...", language="python")
+                        else:
+                            st.code(content, language="python")
+                    if 'old_str' in tool_input:
+                        st.write(f"• **Old Text:** `{tool_input['old_str'][:100]}{'...' if len(tool_input['old_str']) > 100 else ''}`")
+                    if 'new_str' in tool_input:
+                        st.write(f"• **New Text:** `{tool_input['new_str'][:100]}{'...' if len(tool_input['new_str']) > 100 else ''}`")
+                    if 'insert_line' in tool_input:
+                        st.write(f"• **Insert at Line:** {tool_input['insert_line']}")
+                    if 'view_range' in tool_input:
+                        st.write(f"• **View Range:** {tool_input['view_range']}")
+                elif tool_name == 'applescript':
+                    script = tool_input.get('script', '')
+                    st.code(script, language="applescript")
+                elif tool_name == 'silicon':
+                    action = tool_input.get('action', 'Unknown')
+                    st.write(f"• **Monitoring:** {action}")
+                else:
+                    st.json(tool_input)
         else:
             st.markdown(message)
 

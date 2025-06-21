@@ -8,6 +8,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, cast
 
+import httpx
 from anthropic import Anthropic, AnthropicBedrock, AnthropicVertex, APIResponse
 from anthropic.types import (
     ToolResultBlockParam,
@@ -223,6 +224,7 @@ async def sampling_loop(
     max_tokens: int | None = None,
     enable_extended_thinking: bool = False,
     thinking_budget_tokens: int = 10000,
+    api_timeout: int = 120,
 ):
     """
     Agentic sampling loop for the assistant/tool interaction of computer use.
@@ -250,11 +252,37 @@ async def sampling_loop(
             _maybe_filter_to_n_most_recent_images(messages, only_n_most_recent_images)
 
         if provider == APIProvider.ANTHROPIC:
-            client = Anthropic(api_key=api_key, timeout=300.0)  # 5 minute timeout
+            # Enhanced timeout configuration using user-configurable timeout
+            read_timeout = min(api_timeout * 0.8, api_timeout - 10)  # Leave buffer for processing
+            client = Anthropic(
+                api_key=api_key, 
+                timeout=httpx.Timeout(
+                    timeout=float(api_timeout),  # Total timeout from user setting
+                    read=read_timeout,           # Read timeout with buffer
+                    write=30.0,                  # 30 second write timeout
+                    connect=10.0                 # 10 second connect timeout
+                )
+            )
         elif provider == APIProvider.VERTEX:
-            client = AnthropicVertex(timeout=300.0)
+            read_timeout = min(api_timeout * 0.8, api_timeout - 10)
+            client = AnthropicVertex(
+                timeout=httpx.Timeout(
+                    timeout=float(api_timeout),
+                    read=read_timeout,
+                    write=30.0,
+                    connect=10.0
+                )
+            )
         elif provider == APIProvider.BEDROCK:
-            client = AnthropicBedrock(timeout=300.0)
+            read_timeout = min(api_timeout * 0.8, api_timeout - 10)
+            client = AnthropicBedrock(
+                timeout=httpx.Timeout(
+                    timeout=float(api_timeout),
+                    read=read_timeout,
+                    write=30.0,
+                    connect=10.0
+                )
+            )
 
         # Prepare API call parameters
         api_params = {
@@ -278,7 +306,15 @@ async def sampling_loop(
         # implementation may be able call the SDK directly with:
         # `response = client.messages.create(...)` instead.
         api_params["stream"] = False
-        raw_response = client.beta.messages.with_raw_response.create(**api_params)
+        
+        try:
+            raw_response = client.beta.messages.with_raw_response.create(**api_params)
+        except (httpx.TimeoutException, httpx.ReadTimeout) as e:
+            # Return timeout error in a format the UI can handle
+            raise TimeoutError(f"API request timed out after {client.timeout} seconds. This can happen with complex tasks or when using Extended Thinking. Try reducing the thinking budget or simplifying your request.") from e
+        except Exception as e:
+            # Handle other API errors gracefully
+            raise RuntimeError(f"API request failed: {str(e)}") from e
         
         api_response_callback(cast(APIResponse[BetaMessage], raw_response))
         response = raw_response.parse()
