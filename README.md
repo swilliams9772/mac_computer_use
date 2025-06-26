@@ -1,6 +1,59 @@
 # Claude Computer Use for Mac 🚀
 
-Enhanced version of [Mac Computer Use](https://github.com/deedy/mac_computer_use), a fork of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) optimized for macOS.
+Enhanced version of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) optimized for macOS with **Claude 4 support**, **Extended Thinking**, and **comprehensive enhancements**.
+
+## 🆕 Latest Enhancements (2025)
+
+### 🎯 Token Efficiency (14-70% Reduction)
+- **Claude 3.7 Sonnet**: Automatic `token-efficient-tools-2025-02-19` beta header
+- Significant reduction in output tokens for tool use scenarios
+- Optimized for cost-effective long conversations
+
+### 🧠 Enhanced Extended Thinking
+- **Claude 4 Models**: Support for up to **128k thinking tokens**
+- **Interleaved Thinking**: `interleaved-thinking-2025-05-14` beta header for Claude 4
+- Thinking between tool calls for sophisticated multi-step reasoning
+- Smart budget recommendations per model
+
+### ⚡ Enhanced Computer Actions (computer_20250124)
+- **New Actions**: `scroll`, `left_click_drag`, `right_click`, `middle_click`, `double_click`, `triple_click`
+- **Enhanced Control**: `left_mouse_down`, `left_mouse_up`, `hold_key`, `wait`
+- **Comprehensive Mac Shortcuts**: 200+ built-in keyboard shortcuts with task-based aliases
+- **Smart Key Mapping**: Natural language to shortcut conversion (e.g., "copy" → "cmd+c")
+
+### 🎯 Claude 4 Best Practices Integration
+- **Explicit Instructions**: Clear, systematic approach to complex tasks
+- **Parallel Tool Execution**: Optimized strategies for multi-step operations
+- **Enhanced System Prompts**: Comprehensive guidance for macOS automation
+- **Error Recovery**: Built-in fallback strategies and verification steps
+
+## 🌟 Key Features
+
+### 🤖 Model Support
+- **Claude Opus 4** - Most capable model with enhanced reasoning
+- **Claude Sonnet 4** - High performance with 64k output tokens
+- **Claude 3.7 Sonnet** - Extended thinking with token efficiency
+- **Claude 3.5 Sonnet** - Fast and reliable (legacy support)
+- **Claude 3.5 Haiku** - Rapid responses for simple tasks
+
+### 🔧 Advanced Tool Capabilities
+- **Enhanced Computer Tool**: Full mouse/keyboard control with Mac-native optimizations
+- **AppleScript Integration**: High-level macOS application automation
+- **Bash Tool**: Complete command-line access with safety features
+- **File Editor**: Advanced text editing with syntax awareness
+- **Silicon Tool**: Apple Silicon performance monitoring
+
+### 💻 macOS Native Integration
+- **Apple Silicon Optimized**: Native M-series chip performance
+- **Comprehensive Shortcuts**: Complete macOS keyboard shortcut database
+- **System Automation**: Native screencapture, sips, osascript integration
+- **Mission Control**: Spaces and window management support
+
+### 🧠 Intelligence Features
+- **Extended Thinking**: Step-by-step reasoning for complex tasks
+- **Smart Session Management**: ChatGPT-style conversation persistence
+- **Intelligent Auto-naming**: Context-aware chat titles
+- **Tool Usage Analytics**: Performance tracking and optimization
 
 ## 🆕 What's New
 

@@ -30,6 +30,10 @@ from loop import (
     sampling_loop,
     model_supports_extended_thinking,
     get_max_tokens_for_model,
+    model_supports_token_efficiency,
+    model_supports_interleaved_thinking,
+    get_recommended_thinking_budget,
+    get_beta_flags_for_model,
 )
 from tools import ToolResult
 from dotenv import load_dotenv
@@ -1029,22 +1033,38 @@ async def main():
     
     with col1:
         if model_supports_extended_thinking(current_model):
-            st.success(f"🎯 **Current Model:** {current_model} (Extended Thinking Supported)")
+            # Show comprehensive model capabilities
+            capabilities = []
+            if model_supports_token_efficiency(current_model):
+                capabilities.append("Token Efficient")
+            if model_supports_interleaved_thinking(current_model):
+                capabilities.append("Interleaved Thinking")
+            
+            if capabilities:
+                capabilities_text = f" ({', '.join(capabilities)})"
+                st.success(f"🎯 **Current Model:** {current_model}{capabilities_text}")
+            else:
+                st.success(f"🎯 **Current Model:** {current_model} (Extended Thinking)")
         else:
             st.info(f"🎯 **Current Model:** {current_model}")
     
     with col2:
-        # Show current tool execution status
+        # Show current tool execution status or active features summary
         if st.session_state.current_tool_execution:
             st.warning(f"⚡ Executing: {st.session_state.current_tool_execution}")
         else:
-            # Show session statistics
-            total_tools_used = sum(st.session_state.tool_usage_stats.values()) if st.session_state.tool_usage_stats else 0
-            if total_tools_used > 0:
-                st.metric("Tools Used", total_tools_used)
+            # Show active feature count or session statistics
+            active_features = len(get_beta_flags_for_model(current_model))
+            if active_features > 1:  # More than just computer-use
+                st.success(f"🚩 {active_features-1} Enhanced Features")
             else:
-                st.info("Ready 🚀")
-    
+                # Show session statistics as fallback
+                total_tools_used = sum(st.session_state.tool_usage_stats.values()) if st.session_state.tool_usage_stats else 0
+                if total_tools_used > 0:
+                    st.metric("Tools Used", total_tools_used)
+                else:
+                    st.info("Ready 🚀")
+
 
     with st.sidebar:
 
@@ -1116,6 +1136,21 @@ async def main():
         # Extended Thinking Configuration
         if model_supports_extended_thinking(st.session_state.model):
             with st.expander("🧠 Extended Thinking Settings", expanded=False):
+                # Show model capabilities
+                model_capabilities = []
+                if model_supports_token_efficiency(st.session_state.model):
+                    model_capabilities.append("🎯 Token Efficient Tools")
+                if model_supports_interleaved_thinking(st.session_state.model):
+                    model_capabilities.append("🔄 Interleaved Thinking")
+                
+                if model_capabilities:
+                    st.success(" • ".join(model_capabilities))
+                
+                # Show active beta flags
+                beta_flags = get_beta_flags_for_model(st.session_state.model)
+                if len(beta_flags) > 1:  # More than just the computer-use flag
+                    st.info(f"🚩 Active Features: {', '.join(flag for flag in beta_flags if not flag.startswith('computer-use'))}")
+                
                 st.checkbox(
                     "Enable Extended Thinking",
                     key="enable_extended_thinking",
@@ -1123,16 +1158,42 @@ async def main():
                 )
                 
                 if st.session_state.enable_extended_thinking:
+                    # Get recommended budget for this model
+                    recommended_budget = get_recommended_thinking_budget(st.session_state.model)
+                    max_budget = 200000 if model_supports_interleaved_thinking(st.session_state.model) else 128000
+                    
+                    # Auto-update thinking budget if using default and model changed
+                    if st.session_state.thinking_budget_tokens == 10000:  # Default value
+                        st.session_state.thinking_budget_tokens = recommended_budget
+                    
                     st.slider(
                         "Thinking Budget (tokens)",
                         min_value=1024,
-                        max_value=64000,  # Increased for M4 + 16GB
+                        max_value=max_budget,
                         value=st.session_state.thinking_budget_tokens,
                         step=1024,
                         key="thinking_budget_tokens",
-                        help="Maximum tokens Claude can use for internal reasoning"
+                        help=f"Maximum tokens Claude can use for internal reasoning. Recommended: {recommended_budget:,} tokens"
                     )
-                    st.info("💡 Higher budgets allow for more thorough analysis")
+                    
+                    # Show budget recommendations
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("📊 Recommended", help="Use model-optimized thinking budget"):
+                            st.session_state.thinking_budget_tokens = recommended_budget
+                            st.rerun()
+                    with col2:
+                        if st.button("🚀 Maximum", help="Use maximum thinking budget for this model"):
+                            st.session_state.thinking_budget_tokens = max_budget
+                            st.rerun()
+                    
+                    # Budget guidance
+                    if st.session_state.thinking_budget_tokens < recommended_budget:
+                        st.warning(f"💡 Consider using {recommended_budget:,} tokens for optimal performance")
+                    elif model_supports_interleaved_thinking(st.session_state.model):
+                        st.info("🔄 Interleaved thinking: Budget can exceed max output tokens for multi-step reasoning")
+                    else:
+                        st.info("💡 Higher budgets allow for more thorough analysis")
 
 
 

@@ -85,6 +85,26 @@ EXTENDED_THINKING_MODELS = {
     "claude-3-7-sonnet@20250219",
 }
 
+# Models that support token-efficient tools (Claude 3.7 only)
+TOKEN_EFFICIENT_MODELS = {
+    "claude-3-7-sonnet-20250219",
+    "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "claude-3-7-sonnet@20250219",
+}
+
+# Models that support interleaved thinking (Claude 4 only)
+INTERLEAVED_THINKING_MODELS = {
+    "claude-opus-4-20250514",
+    "claude-sonnet-4-20250514",
+    "anthropic.claude-opus-4-20250514-v1:0",
+    "anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-opus-4-20250514-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "claude-opus-4@20250514",
+    "claude-sonnet-4@20250514",
+}
+
 # Max tokens by model - aligned with official Anthropic documentation
 MODEL_MAX_TOKENS = {
     "claude-opus-4-20250514": 32000,     # Claude Opus 4: 32k max output
@@ -95,6 +115,15 @@ MODEL_MAX_TOKENS = {
     "claude-3-5-haiku-20241022": 8192,   # Claude Haiku 3.5: 8k max output
     "claude-3-opus-20240229": 4096,      # Claude Opus 3: 4k max output
     "claude-3-haiku-20240307": 4096,     # Claude Haiku 3: 4k max output
+}
+
+# Extended thinking budget recommendations by model (up to 128k tokens for Claude 4)
+RECOMMENDED_THINKING_BUDGETS = {
+    "claude-opus-4-20250514": 128000,    # Claude Opus 4: Up to 128k thinking tokens
+    "claude-sonnet-4-20250514": 128000,  # Claude Sonnet 4: Up to 128k thinking tokens
+    "claude-3-7-sonnet-20250219": 64000, # Claude Sonnet 3.7: Up to 64k thinking tokens
+    "claude-3-5-sonnet-20241022": 32000, # Claude Sonnet 3.5: Up to 32k thinking tokens
+    "claude-3-5-haiku-20241022": 16000,  # Claude Haiku 3.5: Up to 16k thinking tokens
 }
 
 def get_max_tokens_for_model(model: str) -> int:
@@ -116,9 +145,34 @@ def get_max_tokens_for_model(model: str) -> int:
     
     return MODEL_MAX_TOKENS.get(base_model, 4096)
 
+def get_recommended_thinking_budget(model: str) -> int:
+    """Get the recommended thinking budget for a given model."""
+    # Extract base model name for Bedrock/Vertex models
+    base_model = model
+    if "us.anthropic." in model:
+        base_model = model.replace("us.anthropic.", "").replace("-v1:0", "").replace("-v2:0", "")
+    elif "anthropic." in model:
+        base_model = model.replace("anthropic.", "").replace("-v1:0", "").replace("-v2:0", "")
+    elif "@" in model:
+        base_model = model.split("@")[0]
+        if base_model == "claude-3-5-sonnet-v2":
+            base_model = "claude-3-5-sonnet-20241022"
+        elif "-" in base_model and "@" not in base_model:
+            base_model = base_model.replace("@", "-")
+    
+    return RECOMMENDED_THINKING_BUDGETS.get(base_model, 10000)
+
 def model_supports_extended_thinking(model: str) -> bool:
     """Check if a model supports extended thinking."""
     return model in EXTENDED_THINKING_MODELS
+
+def model_supports_token_efficiency(model: str) -> bool:
+    """Check if a model supports token-efficient tools (Claude 3.7 only)."""
+    return model in TOKEN_EFFICIENT_MODELS
+
+def model_supports_interleaved_thinking(model: str) -> bool:
+    """Check if a model supports interleaved thinking (Claude 4 only)."""
+    return model in INTERLEAVED_THINKING_MODELS
 
 # This system prompt is optimized for the Docker environment in this repository and
 # specific tool combinations enabled.
@@ -172,10 +226,66 @@ SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
   - Use grep with context: grep -n -B <before> -A <after> <query> <filename>
   - Stream processing with awk, sed, and other text utilities
 
-* Note: Command line function calls may have latency. Chain multiple operations into single requests where feasible.
+* Tool efficiency and parallel execution:
+  - When multiple independent actions are needed, plan them upfront and execute together
+  - Use screenshot tool to verify state before and after complex sequences
+  - Chain related commands within single tool calls when possible
+  - For file operations, prefer batch processing over individual operations
 
 * The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
-</SYSTEM_CAPABILITY>"""
+</SYSTEM_CAPABILITY>
+
+<CLAUDE_4_BEST_PRACTICES>
+When approaching complex tasks:
+
+1. **Be Explicit and Systematic**: Break down multi-step tasks into clear phases. State your plan before execution.
+
+2. **Leverage Extended Thinking**: For complex reasoning, use thinking time to plan optimal approaches, especially for:
+   - Multi-application workflows
+   - System configuration changes
+   - Debugging complex issues
+   - File management operations
+
+3. **Optimize Tool Usage**: 
+   - Take screenshots strategically to understand current state
+   - Use bash tool for multiple related commands in sequence
+   - Leverage AppleScript for complex application automation
+   - Prefer specific actions over general ones (e.g., cmd+c instead of right-click menu)
+
+4. **Error Recovery**: 
+   - Always verify successful completion with screenshots
+   - Have fallback strategies for common failure modes
+   - Use system monitoring tools to diagnose issues
+
+5. **Context Awareness**:
+   - Pay attention to application states and focus
+   - Use appropriate delays (wait action) for UI transitions
+   - Consider macOS-specific behaviors (e.g., dock hiding, spaces)
+
+6. **Efficiency Patterns**:
+   - Batch file operations when possible
+   - Use keyboard shortcuts extensively (comprehensive Mac shortcuts available)
+   - Prefer native macOS tools over third-party alternatives
+   - Utilize Mission Control and Spaces for workspace management
+</CLAUDE_4_BEST_PRACTICES>
+
+<PARALLEL_EXECUTION_STRATEGIES>
+For maximum efficiency:
+
+* **Information Gathering**: When you need to check multiple things, gather all information in parallel:
+  - Take screenshot + check system status + list files simultaneously
+  - Use multiple bash commands in sequence within one tool call
+
+* **Verification Steps**: After complex operations, verify success across multiple dimensions:
+  - Visual confirmation (screenshot)
+  - File system verification (ls, file commands)
+  - Process verification (ps, system monitoring)
+
+* **Multi-Application Tasks**: When working with multiple applications:
+  - Plan the complete workflow across all applications
+  - Use application switching shortcuts efficiently
+  - Take state snapshots before major transitions
+</PARALLEL_EXECUTION_STRATEGIES>"""
 
 # Tool version mappings based on model capabilities
 def get_tool_versions_for_model(model: str) -> dict[str, str]:
@@ -211,8 +321,26 @@ def get_tool_versions_for_model(model: str) -> dict[str, str]:
             "beta_flag": "computer-use-2024-10-22"
         }
 
+def get_beta_flags_for_model(model: str) -> list[str]:
+    """Get all appropriate beta flags for a given model."""
+    beta_flags = []
+    
+    # Get the primary tool beta flag
+    tool_versions = get_tool_versions_for_model(model)
+    beta_flags.append(tool_versions["beta_flag"])
+    
+    # Add token efficiency for Claude 3.7
+    if model_supports_token_efficiency(model):
+        beta_flags.append("token-efficient-tools-2025-02-19")
+    
+    # Add interleaved thinking for Claude 4
+    if model_supports_interleaved_thinking(model):
+        beta_flags.append("interleaved-thinking-2025-05-14")
+    
+    return beta_flags
+
 def get_beta_flag_for_model(model: str) -> str:
-    """Get the appropriate beta flag for a given model."""
+    """Get the primary beta flag for a given model (backward compatibility)."""
     tool_versions = get_tool_versions_for_model(model)
     return tool_versions["beta_flag"]
 
@@ -297,15 +425,26 @@ async def sampling_loop(
             "model": model,
             "system": system,
             "tools": tool_collection.to_params(),
-            "betas": [get_beta_flag_for_model(model)],
+            "betas": get_beta_flags_for_model(model),
         }
 
         # Add extended thinking parameters if supported and enabled
         if enable_extended_thinking and model_supports_extended_thinking(model):
-            api_params["thinking"] = {
+            # Use recommended thinking budget if not explicitly set
+            if thinking_budget_tokens == 10000:  # Default value
+                thinking_budget_tokens = get_recommended_thinking_budget(model)
+            
+            thinking_config = {
                 "type": "enabled",
                 "budget_tokens": thinking_budget_tokens
             }
+            
+            # For interleaved thinking models, allow budget to exceed max_tokens
+            if model_supports_interleaved_thinking(model):
+                # With interleaved thinking, budget can exceed max_tokens up to context window
+                thinking_config["budget_tokens"] = min(thinking_budget_tokens, 200000)  # 200k context window limit
+                
+            api_params["thinking"] = thinking_config
 
         # Call the API with explicit stream=False and proper timeout to avoid SDK streaming recommendation
         # we use raw_response to provide debug information to streamlit. Your
