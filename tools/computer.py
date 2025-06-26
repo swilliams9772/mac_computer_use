@@ -19,6 +19,329 @@ OUTPUT_DIR = "/tmp/outputs"
 TYPING_DELAY_MS = 12
 TYPING_GROUP_SIZE = 50
 
+# Mac Keyboard Shortcuts Database
+MAC_SHORTCUTS = {
+    "common": {
+        "cut": "cmd+x",
+        "copy": "cmd+c",
+        "paste": "cmd+v",
+        "undo": "cmd+z",
+        "redo": "shift+cmd+z",
+        "select_all": "cmd+a",
+        "find": "cmd+f",
+        "find_next": "cmd+g",
+        "find_previous": "shift+cmd+g",
+        "hide_app": "cmd+h",
+        "hide_others": "option+cmd+h",
+        "minimize": "cmd+m",
+        "minimize_all": "option+cmd+m",
+        "open": "cmd+o",
+        "print": "cmd+p",
+        "quit": "cmd+q",
+        "save": "cmd+s",
+        "new_tab": "cmd+t",
+        "close_window": "cmd+w",
+        "close_all_windows": "option+cmd+w",
+        "force_quit": "option+cmd+esc",
+        "spotlight": "cmd+space",
+        "character_viewer": "ctrl+cmd+space",
+        "fullscreen": "ctrl+cmd+f",
+        "quick_look": "space",
+        "switch_apps": "cmd+tab",
+        "switch_windows": "cmd+`",
+        "screenshot_selection": "shift+cmd+4",
+        "screenshot_screen": "shift+cmd+3",
+        "screenshot_interactive": "shift+cmd+5",
+        "new_folder": "shift+cmd+n",
+        "preferences": "cmd+,",
+        "quick_note": "fn+q"
+    },
+    
+    "system": {
+        "sleep": "option+cmd+power",
+        "displays_sleep": "ctrl+shift+power",
+        "restart_dialog": "ctrl+power",
+        "force_restart": "ctrl+cmd+power",
+        "shutdown_dialog": "ctrl+option+cmd+power",
+        "lock_screen": "ctrl+cmd+q",
+        "logout": "shift+cmd+q",
+        "logout_immediate": "option+shift+cmd+q"
+    },
+    
+    "finder": {
+        "duplicate": "cmd+d",
+        "eject": "cmd+e",
+        "get_info": "cmd+i",
+        "show_original": "cmd+r",
+        "computer": "shift+cmd+c",
+        "desktop": "shift+cmd+d",
+        "recents": "shift+cmd+f",
+        "go_to_folder": "shift+cmd+g",
+        "home": "shift+cmd+h",
+        "icloud_drive": "shift+cmd+i",
+        "network": "shift+cmd+k",
+        "downloads": "option+cmd+l",
+        "documents": "shift+cmd+o",
+        "preview_pane": "shift+cmd+p",
+        "airdrop": "shift+cmd+r",
+        "tab_bar": "shift+cmd+t",
+        "utilities": "shift+cmd+u",
+        "show_hide_dock": "option+cmd+d",
+        "path_bar": "option+cmd+p",
+        "sidebar": "option+cmd+s",
+        "status_bar": "cmd+/",
+        "view_options": "cmd+j",
+        "connect_server": "cmd+k",
+        "make_alias": "ctrl+cmd+a",
+        "new_window": "cmd+n",
+        "smart_folder": "option+cmd+n",
+        "move_to_trash": "cmd+delete",
+        "empty_trash": "shift+cmd+delete",
+        "empty_trash_no_confirm": "option+shift+cmd+delete",
+        "icon_view": "cmd+1",
+        "list_view": "cmd+2",
+        "column_view": "cmd+3",
+        "gallery_view": "cmd+4",
+        "back": "cmd+[",
+        "forward": "cmd+]",
+        "up_folder": "cmd+up",
+        "open_item": "cmd+down"
+    },
+    
+    "text_editing": {
+        "bold": "cmd+b",
+        "italic": "cmd+i",
+        "underline": "cmd+u",
+        "add_link": "cmd+k",
+        "fonts": "cmd+t",
+        "definition": "ctrl+cmd+d",
+        "spelling_grammar": "shift+cmd+:",
+        "find_misspelled": "cmd+;",
+        "delete_word_left": "option+delete",
+        "delete_char_left": "ctrl+h",
+        "delete_char_right": "ctrl+d",
+        "delete_to_end": "ctrl+k",
+        "page_up": "fn+up",
+        "page_down": "fn+down",
+        "document_start": "fn+left",
+        "document_end": "fn+right",
+        "line_start": "cmd+left",
+        "line_end": "cmd+right",
+        "word_left": "option+left",
+        "word_right": "option+right",
+        "select_to_start": "shift+cmd+up",
+        "select_to_end": "shift+cmd+down",
+        "select_line_start": "shift+cmd+left",
+        "select_line_end": "shift+cmd+right",
+        "move_line_start": "ctrl+a",
+        "move_line_end": "ctrl+e",
+        "move_forward": "ctrl+f",
+        "move_backward": "ctrl+b",
+        "center_cursor": "ctrl+l",
+        "move_up": "ctrl+p",
+        "move_down": "ctrl+n",
+        "new_line": "ctrl+o",
+        "transpose_chars": "ctrl+t",
+        "left_align": "cmd+{",
+        "right_align": "cmd+}",
+        "center_align": "shift+cmd+|",
+        "copy_style": "option+cmd+c",
+        "paste_style": "option+cmd+v",
+        "paste_match_style": "option+shift+cmd+v"
+    },
+    
+    "accessibility": {
+        "invert_colors": "ctrl+option+cmd+8",
+        "reduce_contrast": "ctrl+option+cmd+,",
+        "increase_contrast": "ctrl+option+cmd+.",
+        "focus_menu_bar": "ctrl+f2",
+        "focus_dock": "ctrl+f3",
+        "focus_window": "ctrl+f4",
+        "focus_toolbar": "ctrl+f5",
+        "focus_floating": "ctrl+f6",
+        "previous_panel": "ctrl+shift+f6",
+        "tab_navigation": "ctrl+f7",
+        "focus_status_menu": "ctrl+f8",
+        "accessibility_panel": "option+cmd+f5"
+    },
+    
+    "mission_control": {
+        "mission_control": "ctrl+up",
+        "app_windows": "ctrl+down",
+        "show_desktop": "fn+f11",
+        "spaces_left": "ctrl+left",
+        "spaces_right": "ctrl+right"
+    },
+    
+    "volume_brightness": {
+        "volume_up": "f12",
+        "volume_down": "f11",
+        "mute": "f10",
+        "brightness_up": "f2",
+        "brightness_down": "f1"
+    }
+}
+
+# Common task shortcuts for easier access
+TASK_SHORTCUTS = {
+    "file_operations": {
+        "new_file": "cmd+n",
+        "open_file": "cmd+o",
+        "save_file": "cmd+s",
+        "save_as": "shift+cmd+s",
+        "close_file": "cmd+w",
+        "duplicate_file": "cmd+d",
+        "move_to_trash": "cmd+delete",
+        "get_file_info": "cmd+i"
+    },
+    
+    "navigation": {
+        "go_back": "cmd+[",
+        "go_forward": "cmd+]",
+        "go_up": "cmd+up",
+        "go_home": "shift+cmd+h",
+        "go_to_applications": "shift+cmd+a",
+        "go_to_utilities": "shift+cmd+u",
+        "go_to_downloads": "option+cmd+l"
+    },
+    
+    "window_management": {
+        "new_window": "cmd+n",
+        "close_window": "cmd+w",
+        "minimize_window": "cmd+m",
+        "hide_app": "cmd+h",
+        "switch_apps": "cmd+tab",
+        "switch_windows": "cmd+`",
+        "fullscreen": "ctrl+cmd+f"
+    },
+    
+    "text_operations": {
+        "select_all": "cmd+a",
+        "copy": "cmd+c",
+        "cut": "cmd+x",
+        "paste": "cmd+v",
+        "undo": "cmd+z",
+        "redo": "shift+cmd+z",
+        "find": "cmd+f",
+        "replace": "option+cmd+f"
+    }
+}
+
+# Key name mappings for macOS
+MAC_KEY_MAP = {
+    # Modifier keys
+    "command": "cmd",
+    "cmd": "cmd",
+    "⌘": "cmd",
+    "option": "alt",
+    "alt": "alt", 
+    "⌥": "alt",
+    "control": "ctrl",
+    "ctrl": "ctrl",
+    "⌃": "ctrl",
+    "shift": "shift",
+    "⇧": "shift",
+    "fn": "fn",
+    
+    # Special keys
+    "return": "enter",
+    "enter": "enter",
+    "space": "space",
+    "spacebar": "space",
+    "tab": "tab",
+    "escape": "esc",
+    "esc": "esc",
+    "delete": "backspace",
+    "backspace": "backspace",
+    "forward_delete": "delete",
+    
+    # Arrow keys
+    "up": "up",
+    "down": "down", 
+    "left": "left",
+    "right": "right",
+    "up_arrow": "up",
+    "down_arrow": "down",
+    "left_arrow": "left", 
+    "right_arrow": "right",
+    
+    # Function keys
+    "f1": "f1", "f2": "f2", "f3": "f3", "f4": "f4",
+    "f5": "f5", "f6": "f6", "f7": "f7", "f8": "f8",
+    "f9": "f9", "f10": "f10", "f11": "f11", "f12": "f12",
+    
+    # Other keys
+    "grave": "`",
+    "backtick": "`",
+    "tilde": "~",
+    "comma": ",",
+    "period": ".",
+    "semicolon": ";",
+    "colon": ":",
+    "slash": "/",
+    "backslash": "\\",
+    "quote": "'",
+    "double_quote": '"',
+    "left_bracket": "[",
+    "right_bracket": "]",
+    "left_brace": "{",
+    "right_brace": "}",
+    "minus": "-",
+    "plus": "+",
+    "equals": "=",
+    "pipe": "|"
+}
+
+def get_shortcut_for_task(task: str, category: str = None) -> str | None:
+    """Get the keyboard shortcut for a specific task."""
+    if category and category in TASK_SHORTCUTS:
+        return TASK_SHORTCUTS[category].get(task)
+    
+    # Search across all categories
+    for cat_shortcuts in TASK_SHORTCUTS.values():
+        if task in cat_shortcuts:
+            return cat_shortcuts[task]
+    
+    # Search in main shortcuts
+    for cat_shortcuts in MAC_SHORTCUTS.values():
+        if task in cat_shortcuts:
+            return cat_shortcuts[task]
+    
+    return None
+
+def get_shortcuts_by_category(category: str) -> dict[str, str]:
+    """Get all shortcuts for a specific category."""
+    return MAC_SHORTCUTS.get(category, {})
+
+def normalize_key_combination(key_combo: str) -> str:
+    """Normalize a key combination to standard format."""
+    if not key_combo:
+        return ""
+    
+    parts = key_combo.lower().replace(" ", "").split("+")
+    normalized_parts = []
+    
+    for part in parts:
+        normalized = MAC_KEY_MAP.get(part, part)
+        normalized_parts.append(normalized)
+    
+    return "+".join(normalized_parts)
+
+def find_shortcuts_containing(search_term: str) -> dict[str, dict[str, str]]:
+    """Find all shortcuts that contain a specific search term in their name."""
+    results = {}
+    search_lower = search_term.lower()
+    
+    for category, shortcuts in MAC_SHORTCUTS.items():
+        category_results = {}
+        for shortcut_name, shortcut_keys in shortcuts.items():
+            if search_lower in shortcut_name.lower():
+                category_results[shortcut_name] = shortcut_keys
+        if category_results:
+            results[category] = category_results
+    
+    return results
+
 Action = Literal[
     "key",
     "hold_key",  # New in 20250124
@@ -74,6 +397,26 @@ class ComputerTool(BaseAnthropicTool):
     A tool that allows the agent to interact with the screen, keyboard, and mouse of the current macOS computer.
     The tool parameters are defined by Anthropic and are not editable.
     Requires cliclick to be installed: brew install cliclick
+    
+    Enhanced with comprehensive Mac keyboard shortcuts database including:
+    - Common shortcuts (copy, paste, undo, etc.)
+    - System shortcuts (sleep, logout, force quit, etc.)
+    - Finder shortcuts (navigation, file operations, etc.)
+    - Text editing shortcuts (cursor movement, selection, etc.)
+    - Accessibility shortcuts (focus control, etc.)
+    - Mission Control shortcuts
+    - Volume and brightness controls
+    
+    The tool can now:
+    - Accept task names like "copy" instead of "cmd+c"
+    - Normalize various key combination formats
+    - Search for shortcuts by category or term
+    - Provide better error messages and feedback
+    
+    Example usage:
+    - action="key", text="copy" -> performs cmd+c
+    - action="key", text="cmd+c" -> performs cmd+c (normalized)
+    - action="key", text="Command-C" -> performs cmd+c (normalized)
     """
 
     name: Literal["computer"] = "computer"
@@ -103,6 +446,22 @@ class ComputerTool(BaseAnthropicTool):
         self.width, self.height = pyautogui.size()
         assert self.width and self.height, "WIDTH, HEIGHT must be set"
         self.display_num = None  # macOS doesn't use X11 display numbers
+
+    def get_mac_shortcut(self, task: str, category: str = None) -> str | None:
+        """Get the Mac keyboard shortcut for a specific task."""
+        return get_shortcut_for_task(task, category)
+    
+    def list_shortcuts_for_category(self, category: str) -> dict[str, str]:
+        """List all available shortcuts for a category."""
+        return get_shortcuts_by_category(category)
+    
+    def search_shortcuts(self, search_term: str) -> dict[str, dict[str, str]]:
+        """Search for shortcuts containing a specific term."""
+        return find_shortcuts_containing(search_term)
+    
+    def get_all_categories(self) -> list[str]:
+        """Get all available shortcut categories."""
+        return list(MAC_SHORTCUTS.keys()) + list(TASK_SHORTCUTS.keys())
 
     async def __call__(
         self,
@@ -166,39 +525,43 @@ class ComputerTool(BaseAnthropicTool):
                 raise ToolError(output=f"{text} must be a string")
 
             if action == "key":
-                # Convert common key names to pyautogui format
-                key_map = {
-                    "Return": "enter",
-                    "space": "space",
-                    "Tab": "tab",
-                    "Left": "left",
-                    "Right": "right",
-                    "Up": "up",
-                    "Down": "down",
-                    "Escape": "esc",
-                    "command": "command",
-                    "cmd": "command",
-                    "alt": "alt",
-                    "shift": "shift",
-                    "ctrl": "ctrl"
-                }
+                # First, try to normalize the key combination using our Mac shortcuts database
+                normalized_keys = normalize_key_combination(text)
+                
+                # If it's a task name, try to get the shortcut for it
+                if not "+" in text and normalized_keys == text.lower():
+                    shortcut = get_shortcut_for_task(text.lower())
+                    if shortcut:
+                        normalized_keys = shortcut
+                        print(f"Using Mac shortcut for '{text}': {shortcut}")
 
                 try:
-                    if "+" in text:
-                        # Handle combinations like "ctrl+c"
-                        keys = text.split("+")
-                        mapped_keys = [key_map.get(k.strip(), k.strip()) for k in keys]
+                    if "+" in normalized_keys:
+                        # Handle combinations like "cmd+c"
+                        keys = normalized_keys.split("+")
+                        # Use our enhanced MAC_KEY_MAP for better key mapping
+                        mapped_keys = []
+                        for k in keys:
+                            key_strip = k.strip()
+                            mapped = MAC_KEY_MAP.get(key_strip, key_strip)
+                            mapped_keys.append(mapped)
+                        
+                        key_combination = '+'.join(mapped_keys)
                         await asyncio.get_event_loop().run_in_executor(
-                            None, keyboard.press_and_release, '+'.join(mapped_keys)
+                            None, keyboard.press_and_release, key_combination
                         )
                     else:
                         # Handle single keys
-                        mapped_key = key_map.get(text, text)
+                        mapped_key = MAC_KEY_MAP.get(normalized_keys, normalized_keys)
                         await asyncio.get_event_loop().run_in_executor(
                             None, keyboard.press_and_release, mapped_key
                         )
 
-                    return ToolResult(output=f"Pressed key: {text}", error=None, base64_image=None)
+                    return ToolResult(
+                        output=f"Pressed key combination: {text} (normalized: {normalized_keys})", 
+                        error=None, 
+                        base64_image=None
+                    )
 
                 except Exception as e:
                     return ToolResult(output=None, error=str(e), base64_image=None)

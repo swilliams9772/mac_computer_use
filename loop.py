@@ -37,7 +37,7 @@ class APIProvider(StrEnum):
 # Updated model mappings to include Claude 3.7 and Claude 4
 PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
     APIProvider.ANTHROPIC: "claude-sonnet-4-20250514",  # Default to Claude 4 Sonnet
-    APIProvider.BEDROCK: "anthropic.claude-sonnet-4-20250514-v1:0",
+    APIProvider.BEDROCK: "us.anthropic.claude-sonnet-4-20250514-v1:0",  # Use cross-region inference profile
     APIProvider.VERTEX: "claude-sonnet-4@20250514",
 }
 
@@ -52,12 +52,12 @@ AVAILABLE_MODELS: dict[APIProvider, list[tuple[str, str]]] = {
         ("claude-3-opus-20240229", "Claude Opus 3 - Legacy"),
     ],
     APIProvider.BEDROCK: [
-        ("anthropic.claude-opus-4-20250514-v1:0", "Claude Opus 4 - Most capable"),
-        ("anthropic.claude-sonnet-4-20250514-v1:0", "Claude Sonnet 4 - High performance"),
-        ("anthropic.claude-3-7-sonnet-20250219-v1:0", "Claude Sonnet 3.7 - With extended thinking"),
-        ("anthropic.claude-3-5-sonnet-20241022-v2:0", "Claude Sonnet 3.5 v2"),
-        ("anthropic.claude-3-5-haiku-20241022-v1:0", "Claude Haiku 3.5"),
-        ("anthropic.claude-3-opus-20240229-v1:0", "Claude Opus 3 - Legacy"),
+        ("us.anthropic.claude-opus-4-20250514-v1:0", "Claude Opus 4 - Most capable (Cross-Region)"),
+        ("us.anthropic.claude-sonnet-4-20250514-v1:0", "Claude Sonnet 4 - High performance (Cross-Region)"),
+        ("us.anthropic.claude-3-7-sonnet-20250219-v1:0", "Claude Sonnet 3.7 - With extended thinking (Cross-Region)"),
+        ("us.anthropic.claude-3-5-sonnet-20241022-v2:0", "Claude Sonnet 3.5 v2 (Cross-Region)"),
+        ("us.anthropic.claude-3-5-haiku-20241022-v1:0", "Claude Haiku 3.5 (Cross-Region)"),
+        ("us.anthropic.claude-3-opus-20240229-v1:0", "Claude Opus 3 - Legacy (Cross-Region)"),
     ],
     APIProvider.VERTEX: [
         ("claude-opus-4@20250514", "Claude Opus 4 - Most capable"),
@@ -77,6 +77,9 @@ EXTENDED_THINKING_MODELS = {
     "anthropic.claude-opus-4-20250514-v1:0",
     "anthropic.claude-sonnet-4-20250514-v1:0",
     "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-opus-4-20250514-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     "claude-opus-4@20250514",
     "claude-sonnet-4@20250514",
     "claude-3-7-sonnet@20250219",
@@ -98,7 +101,10 @@ def get_max_tokens_for_model(model: str) -> int:
     """Get the maximum tokens for a given model."""
     # Extract base model name for Bedrock/Vertex models
     base_model = model
-    if "anthropic." in model:
+    if "us.anthropic." in model:
+        # Handle cross-region inference profiles
+        base_model = model.replace("us.anthropic.", "").replace("-v1:0", "").replace("-v2:0", "")
+    elif "anthropic." in model:
         base_model = model.replace("anthropic.", "").replace("-v1:0", "").replace("-v2:0", "")
     elif "@" in model:
         base_model = model.split("@")[0]
@@ -259,8 +265,8 @@ async def sampling_loop(
                 timeout=httpx.Timeout(
                     timeout=float(api_timeout),  # Total timeout from user setting
                     read=read_timeout,           # Read timeout with buffer
-                    write=30.0,                  # 30 second write timeout
-                    connect=10.0                 # 10 second connect timeout
+                    write=120.0,                 # 2 minute write timeout for large requests
+                    connect=30.0                 # 30 second connect timeout
                 )
             )
         elif provider == APIProvider.VERTEX:
@@ -269,8 +275,8 @@ async def sampling_loop(
                 timeout=httpx.Timeout(
                     timeout=float(api_timeout),
                     read=read_timeout,
-                    write=30.0,
-                    connect=10.0
+                    write=120.0,
+                    connect=30.0
                 )
             )
         elif provider == APIProvider.BEDROCK:
@@ -279,8 +285,8 @@ async def sampling_loop(
                 timeout=httpx.Timeout(
                     timeout=float(api_timeout),
                     read=read_timeout,
-                    write=30.0,
-                    connect=10.0
+                    write=120.0,
+                    connect=30.0
                 )
             )
 
