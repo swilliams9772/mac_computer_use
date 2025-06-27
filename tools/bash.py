@@ -127,19 +127,108 @@ class BashTool(BaseAnthropicTool):
             self._session = _BashSession()
             await self._session.start()
 
-            return ToolResult(system="tool has been restarted.")
+            return ToolResult(output="✅ **Bash session restarted** - Ready for new commands", system="tool has been restarted.")
 
         if self._session is None:
             self._session = _BashSession()
             await self._session.start()
 
         if command is not None:
-            return await self._session.run(command)
+            if not command.strip():
+                return ToolResult(error="❌ **Empty command:** Please provide a command to execute")
+            
+            # Provide helpful warnings for potentially dangerous commands
+            dangerous_patterns = ['rm -rf /', 'sudo rm', 'format', 'fdisk', 'dd if=']
+            if any(pattern in command.lower() for pattern in dangerous_patterns):
+                return ToolResult(error="⚠️ **Potentially dangerous command detected:** Please review the command carefully before execution")
+            
+            try:
+                result = await self._session.run(command)
+                
+                # Enhanced result formatting
+                if result.error and result.output:
+                    return ToolResult(
+                        output=f"✅ **Command executed with warnings:**\n```\n{result.output}\n```",
+                        error=f"⚠️ **Warnings/Errors:**\n```\n{result.error}\n```"
+                    )
+                elif result.error:
+                    return ToolResult(
+                        error=f"❌ **Command failed:**\n```\n{result.error}\n```\n💡 **Tip:** Check the command syntax and ensure you have proper permissions"
+                    )
+                elif result.output:
+                    return ToolResult(
+                        output=f"✅ **Command executed successfully:**\n```\n{result.output}\n```"
+                    )
+                else:
+                    return ToolResult(
+                        output="✅ **Command executed successfully** (no output produced)"
+                    )
+                    
+            except Exception as e:
+                return ToolResult(
+                    error=f"❌ **Execution error:** {str(e)}\n💡 **Tip:** Try restarting the bash session if the error persists"
+                )
 
-        raise ToolError("no command provided.")
+        return ToolResult(error="❌ **No command provided:** Please specify a command to execute")
 
     def to_params(self):
-        return {
-            "type": self.api_type,
-            "name": self.name,
-        }
+        # For Anthropic-defined tools (bash_20250124, bash_20241022), only include type and name
+        # Anthropic provides the description and input_schema internally
+        if self.api_type in ["bash_20250124", "bash_20241022"]:
+            return {
+                "type": self.api_type,
+                "name": self.name,
+            }
+        else:
+            # For custom tools or older versions, include full description and schema
+            return {
+                "type": self.api_type,
+                "name": self.name,
+                "description": """Execute bash commands in a persistent shell session.
+
+**Key Features:**
+- Persistent session maintains state between commands
+- Support for complex command sequences and pipelines
+- Environment variables and directory changes persist
+- Safe execution with built-in dangerous command detection
+
+**Usage Examples:**
+- `ls -la` - List files with details
+- `cd /path/to/directory` - Change directory
+- `brew install package` - Install software (macOS)
+- `pip install package` - Install Python packages
+- `git status` - Check git repository status
+- `find . -name "*.py"` - Search for Python files
+
+**Safety Features:**
+- Automatic detection of potentially dangerous commands
+- Session restart capability for recovery
+- Comprehensive error reporting with helpful tips
+
+**Best Practices:**
+- Use `pwd` to check current directory
+- Use `ls` to explore available files and folders
+- Check command output before proceeding with file operations
+- Use `restart: true` if the session becomes unresponsive""",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The bash command to execute. Examples:\n" +
+                            "• 'ls -la' - List directory contents\n" +
+                            "• 'cd ~/Documents' - Change to Documents folder\n" +
+                            "• 'brew install wget' - Install software via Homebrew\n" +
+                            "• 'python script.py' - Run a Python script\n" +
+                            "• 'git clone https://github.com/user/repo.git' - Clone repository\n" +
+                            "• 'find . -name \"*.txt\" | head -10' - Find text files"
+                        },
+                        "restart": {
+                            "type": "boolean", 
+                            "description": "Set to true to restart the bash session (useful for recovery)",
+                            "default": False
+                        }
+                    },
+                    "required": ["command"]
+                }
+            }

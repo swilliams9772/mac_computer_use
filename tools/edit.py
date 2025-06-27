@@ -66,31 +66,27 @@ class EditTool(BaseAnthropicTool):
             return await self.view(_path, view_range)
         elif command == "create":
             if not file_text:
-                raise ToolError("Parameter `file_text` is required for command: create")
+                return ToolResult(error="❌ **Missing file content:** The `file_text` parameter is required when creating a file")
             self.write_file(_path, file_text)
             self._file_history[_path].append(file_text)
-            return ToolResult(output=f"File created successfully at: {_path}")
+            return ToolResult(output=f"✅ **File created successfully** at: `{_path}`\n📝 Content: {len(file_text)} characters")
         elif command == "str_replace":
             if not old_str:
-                raise ToolError(
-                    "Parameter `old_str` is required for command: str_replace"
-                )
+                return ToolResult(error="❌ **Missing search text:** The `old_str` parameter is required to specify what text to replace")
             return self.str_replace(_path, old_str, new_str)
         elif command == "insert":
             if insert_line is None:
-                raise ToolError(
-                    "Parameter `insert_line` is required for command: insert"
-                )
+                return ToolResult(error="❌ **Missing line number:** The `insert_line` parameter is required to specify where to insert text")
             if not new_str:
-                raise ToolError("Parameter `new_str` is required for command: insert")
+                return ToolResult(error="❌ **Missing content:** The `new_str` parameter is required to specify what text to insert")
             return self.insert(_path, insert_line, new_str)
         elif command == "undo_edit":
             if not self._supports_undo_edit():
-                raise ToolError(f"The `undo_edit` command is not supported in {self.api_type}. This command is only available in text_editor_20250124 and text_editor_20241022.")
+                return ToolResult(error=f"❌ **Unsupported command:** The `undo_edit` command is not available in {self.api_type}. This feature is only available in text_editor_20250124 and text_editor_20241022.")
             return self.undo_edit(_path)
-        raise ToolError(
-            f'Unrecognized command {command}. The allowed commands for the {self.name} tool are: {", ".join(get_args(Command))}'
-        )
+        
+        available_commands = ", ".join(get_args(Command))
+        return ToolResult(error=f"❌ **Unknown command:** '{command}' is not recognized. Available commands: {available_commands}")
 
     def validate_path(self, command: str, path: Path):
         """
@@ -100,70 +96,72 @@ class EditTool(BaseAnthropicTool):
         if not path.is_absolute():
             suggested_path = Path("") / path
             raise ToolError(
-                f"The path {path} is not an absolute path, it should start with `/`. Maybe you meant {suggested_path}?"
+                f"❌ **Invalid path:** '{path}' must be an absolute path starting with '/'. Did you mean: `{suggested_path}`?"
             )
         # Check if path exists
         if not path.exists() and command != "create":
             raise ToolError(
-                f"The path {path} does not exist. Please provide a valid path."
+                f"❌ **File not found:** '{path}' does not exist. Use the 'create' command to create new files, or use 'view' to explore existing directories."
             )
         if path.exists() and command == "create":
             raise ToolError(
-                f"File already exists at: {path}. Cannot overwrite files using command `create`."
+                f"❌ **File already exists:** '{path}' already exists. Use 'str_replace' to modify existing files, or choose a different filename."
             )
         # Check if the path points to a directory
         if path.is_dir():
             if command != "view":
                 raise ToolError(
-                    f"The path {path} is a directory and only the `view` command can be used on directories"
+                    f"❌ **Directory operation:** '{path}' is a directory. Only the 'view' command can be used on directories to explore their contents."
                 )
 
     async def view(self, path: Path, view_range: list[int] | None = None):
         """Implement the view command"""
         if path.is_dir():
             if view_range:
-                raise ToolError(
-                    "The `view_range` parameter is not allowed when `path` points to a directory."
-                )
+                return ToolResult(error="❌ **Invalid parameter:** The `view_range` parameter cannot be used when viewing directories")
 
             _, stdout, stderr = await run(
                 rf"find {path} -maxdepth 2 -not -path '*/\.*'"
             )
             if not stderr:
-                stdout = f"Here's the files and directories up to 2 levels deep in {path}, excluding hidden items:\n{stdout}\n"
-            return CLIResult(output=stdout, error=stderr)
+                stdout = f"📁 **Directory contents of {path}** (up to 2 levels, excluding hidden files):\n{stdout}\n"
+                return CLIResult(output=stdout)
+            else:
+                return CLIResult(error=f"❌ **Directory access error:** {stderr}")
 
         file_content = self.read_file(path)
         init_line = 1
+        total_lines = len(file_content.split("\n"))
+        
         if view_range:
             if len(view_range) != 2 or not all(isinstance(i, int) for i in view_range):
-                raise ToolError(
-                    "Invalid `view_range`. It should be a list of two integers."
-                )
+                return ToolResult(error="❌ **Invalid view range:** Must be a list of two integers [start_line, end_line]")
+            
             file_lines = file_content.split("\n")
             n_lines_file = len(file_lines)
             init_line, final_line = view_range
+            
             if init_line < 1 or init_line > n_lines_file:
-                raise ToolError(
-                    f"Invalid `view_range`: {view_range}. It's first element `{init_line}` should be within the range of lines of the file: {[1, n_lines_file]}"
-                )
+                return ToolResult(error=f"❌ **Invalid start line:** {init_line} is out of range. File has {n_lines_file} lines (1-{n_lines_file})")
+                
             if final_line > n_lines_file:
-                raise ToolError(
-                    f"Invalid `view_range`: {view_range}. It's second element `{final_line}` should be smaller than the number of lines in the file: `{n_lines_file}`"
-                )
+                return ToolResult(error=f"❌ **Invalid end line:** {final_line} exceeds file length. File has {n_lines_file} lines")
+                
             if final_line != -1 and final_line < init_line:
-                raise ToolError(
-                    f"Invalid `view_range`: {view_range}. It's second element `{final_line}` should be larger or equal than its first `{init_line}`"
-                )
+                return ToolResult(error=f"❌ **Invalid range:** End line ({final_line}) must be greater than or equal to start line ({init_line})")
 
             if final_line == -1:
                 file_content = "\n".join(file_lines[init_line - 1 :])
             else:
                 file_content = "\n".join(file_lines[init_line - 1 : final_line])
 
-        return CLIResult(
-            output=self._make_output(file_content, str(path), init_line=init_line)
-        )
+        result_output = self._make_output(file_content, str(path), init_line=init_line)
+        if view_range:
+            result_output = f"📄 **Viewing lines {init_line}-{final_line if final_line != -1 else total_lines} of {path}:**\n{result_output}"
+        else:
+            result_output = f"📄 **File content of {path}** ({total_lines} lines):\n{result_output}"
+            
+        return CLIResult(output=result_output)
 
     def str_replace(self, path: Path, old_str: str, new_str: str | None):
         """Implement the str_replace command, which replaces old_str with new_str in the file content"""
@@ -175,9 +173,7 @@ class EditTool(BaseAnthropicTool):
         # Check if old_str is unique in the file
         occurrences = file_content.count(old_str)
         if occurrences == 0:
-            raise ToolError(
-                f"No replacement was performed, old_str `{old_str}` did not appear verbatim in {path}."
-            )
+            return ToolResult(error=f"❌ **Text not found:** The text `{old_str}` does not appear in {path}. Please check the exact text you want to replace.")
         elif occurrences > 1:
             file_content_lines = file_content.split("\n")
             lines = [
@@ -185,9 +181,7 @@ class EditTool(BaseAnthropicTool):
                 for idx, line in enumerate(file_content_lines)
                 if old_str in line
             ]
-            raise ToolError(
-                f"No replacement was performed. Multiple occurrences of old_str `{old_str}` in lines {lines}. Please ensure it is unique"
-            )
+            return ToolResult(error=f"❌ **Multiple matches found:** The text `{old_str}` appears {occurrences} times on lines {lines}. Please make the search text more specific to match exactly one occurrence.")
 
         # Replace old_str with new_str
         new_file_content = file_content.replace(old_str, new_str)
@@ -205,11 +199,12 @@ class EditTool(BaseAnthropicTool):
         snippet = "\n".join(new_file_content.split("\n")[start_line : end_line + 1])
 
         # Prepare the success message
-        success_msg = f"The file {path} has been edited. "
+        success_msg = f"✅ **File edited successfully** - Replaced text in {path}\n"
+        success_msg += f"🔄 **Change:** `{old_str[:50]}{'...' if len(old_str) > 50 else ''}` → `{new_str[:50]}{'...' if len(new_str) > 50 else ''}`\n\n"
         success_msg += self._make_output(
-            snippet, f"a snippet of {path}", start_line + 1
+            snippet, f"Updated content preview", start_line + 1
         )
-        success_msg += "Review the changes and make sure they are as expected. Edit the file again if necessary."
+        success_msg += "\n💡 **Tip:** Review the changes carefully and use the file again if additional edits are needed."
 
         return CLIResult(output=success_msg)
 
@@ -221,9 +216,7 @@ class EditTool(BaseAnthropicTool):
         n_lines_file = len(file_text_lines)
 
         if insert_line < 0 or insert_line > n_lines_file:
-            raise ToolError(
-                f"Invalid `insert_line` parameter: {insert_line}. It should be within the range of lines of the file: {[0, n_lines_file]}"
-            )
+            return ToolResult(error=f"❌ **Invalid line number:** {insert_line} is out of range. Valid range is 0-{n_lines_file} (0 = insert at beginning, {n_lines_file} = insert at end)")
 
         new_str_lines = new_str.split("\n")
         new_file_text_lines = (
@@ -243,40 +236,55 @@ class EditTool(BaseAnthropicTool):
         self.write_file(path, new_file_text)
         self._file_history[path].append(file_text)
 
-        success_msg = f"The file {path} has been edited. "
+        success_msg = f"✅ **Text inserted successfully** at line {insert_line} in {path}\n"
+        success_msg += f"📝 **Added:** {len(new_str_lines)} line(s)\n\n"
         success_msg += self._make_output(
             snippet,
-            "a snippet of the edited file",
+            "Updated content preview",
             max(1, insert_line - SNIPPET_LINES + 1),
         )
-        success_msg += "Review the changes and make sure they are as expected (correct indentation, no duplicate lines, etc). Edit the file again if necessary."
+        success_msg += "\n💡 **Tip:** Check the indentation and formatting to ensure the inserted text aligns properly with the existing code."
         return CLIResult(output=success_msg)
 
     def undo_edit(self, path: Path):
         """Implement the undo_edit command."""
         if not self._file_history[path]:
-            raise ToolError(f"No edit history found for {path}.")
+            return ToolResult(error=f"❌ **No edit history:** No previous edits found for {path}. Cannot undo changes.")
 
         old_text = self._file_history[path].pop()
         self.write_file(path, old_text)
 
         return CLIResult(
-            output=f"Last edit to {path} undone successfully. {self._make_output(old_text, str(path))}"
+            output=f"✅ **Edit undone successfully** for {path}\n\n{self._make_output(old_text, str(path))}\n\n💡 **Tip:** The file has been restored to its previous state. You can continue editing or use 'view' to verify the changes."
         )
 
     def read_file(self, path: Path):
         """Read the content of a file from a given path; raise a ToolError if an error occurs."""
         try:
-            return path.read_text()
+            content = path.read_text()
+            return content
+        except UnicodeDecodeError:
+            raise ToolError(f"❌ **Encoding error:** Cannot read {path} - file appears to be binary or uses unsupported encoding") from None
+        except PermissionError:
+            raise ToolError(f"❌ **Permission denied:** Cannot read {path} - check file permissions") from None
         except Exception as e:
-            raise ToolError(f"Ran into {e} while trying to read {path}") from None
+            raise ToolError(f"❌ **File read error:** {str(e)} while reading {path}") from None
 
     def write_file(self, path: Path, file: str):
         """Write the content of a file to a given path; raise a ToolError if an error occurs."""
         try:
+            # Create parent directories if they don't exist
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(file)
+        except PermissionError:
+            raise ToolError(f"❌ **Permission denied:** Cannot write to {path} - check file and directory permissions") from None
+        except OSError as e:
+            if "No space left on device" in str(e):
+                raise ToolError(f"❌ **Disk full:** Cannot write to {path} - insufficient disk space") from None
+            else:
+                raise ToolError(f"❌ **File write error:** {str(e)} while writing to {path}") from None
         except Exception as e:
-            raise ToolError(f"Ran into {e} while trying to write to {path}") from None
+            raise ToolError(f"❌ **Unexpected error:** {str(e)} while writing to {path}") from None
 
     def _make_output(
         self,
@@ -296,7 +304,5 @@ class EditTool(BaseAnthropicTool):
             ]
         )
         return (
-            f"Here's the result of running `cat -n` on {file_descriptor}:\n"
-            + file_content
-            + "\n"
+            f"```\n{file_content}\n```"
         )

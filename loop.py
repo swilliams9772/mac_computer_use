@@ -194,123 +194,292 @@ def model_supports_interleaved_thinking(model: str) -> bool:
 # * If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext (available via homebrew) to convert it to a text file, and then read that text file directly with your StrReplaceEditTool.
 # </IMPORTANT>"""
 SYSTEM_PROMPT = f"""<SYSTEM_CAPABILITY>
-* You are utilizing a macOS environment using {platform.machine()} architecture with command line internet access.
+* You are utilizing a macOS Sequoia 15.6 Beta environment on {platform.machine()} architecture (Apple M4) with command line internet access.
+* Hardware specifications:
+  - Apple M4 chip with 4 performance cores and 6 efficiency cores
+  - Unified memory architecture for optimal performance
+  - Enhanced GPU with hardware acceleration
+  - Neural Engine for ML workloads
+  - Advanced thermal management
+
 * Package management:
-  - Use homebrew for package installation
-  - Use curl for HTTP requests
+  - Use homebrew for package installation (brew install)
+  - Use curl for HTTP requests (preferred over wget)
   - Use npm/yarn for Node.js packages
   - Use pip for Python packages
 
-* System automation:
-  - cliclick for simulating mouse/keyboard input
+* System automation and M4 optimizations:
+  - cliclick for precise mouse/keyboard input (M4-optimized timing)
   - osascript for AppleScript commands (also available via dedicated applescript tool)
   - launchctl for managing services
   - defaults for reading/writing system preferences
   - AppleScript tool for high-level macOS application automation
   - shortcuts command for running macOS Shortcuts
   - system_profiler for detailed hardware information
+  - pmset for power and thermal management
 
-* Apple Silicon optimizations (if available):
-  - Unified memory architecture
+* macOS Sequoia 15.6 Beta specific features:
+  - Enhanced Safari with improved form handling
+  - Better WebKit performance and compatibility
+  - Improved accessibility features
+  - Enhanced autofill and form detection
+  - Better thermal management on M4
+
+* Apple Silicon M4 optimizations:
+  - Unified memory architecture (no separate GPU memory)
   - Hardware-accelerated video/image processing
-  - Native performance cores and efficiency cores
+  - Native performance cores for demanding tasks
+  - Efficiency cores for background operations
+  - Enhanced machine learning acceleration
+  - Improved energy efficiency
 
 * Development tools:
   - Standard Unix/Linux command line utilities
   - Git for version control
-  - Docker for containerization
+  - Docker for containerization (Apple Silicon native)
   - Common build tools (make, cmake, etc.)
+  - Xcode command line tools
 
-* Output handling:
+* Output handling and performance:
   - For large output, redirect to tmp files: command > /tmp/output.txt
   - Use grep with context: grep -n -B <before> -A <after> <query> <filename>
   - Stream processing with awk, sed, and other text utilities
+  - Prefer batch operations for better M4 performance
 
 * Tool efficiency and parallel execution:
   - When multiple independent actions are needed, plan them upfront and execute together
   - Use screenshot tool to verify state before and after complex sequences
   - Chain related commands within single tool calls when possible
   - For file operations, prefer batch processing over individual operations
+  - Leverage M4's parallel processing capabilities
 
 * The current date is {datetime.today().strftime('%A, %B %-d, %Y')}.
 </SYSTEM_CAPABILITY>
 
+<MACBOOK_AIR_M4_BEST_PRACTICES>
+Hardware-Specific Optimizations:
+
+1. **Thermal Awareness**: Monitor system thermal state during intensive operations
+   - Use pmset -g therm to check thermal conditions
+   - Reduce operation frequency if thermal pressure is high
+   - Leverage efficiency cores for background tasks
+
+2. **Memory Efficiency**: Optimize for unified memory architecture
+   - Be mindful of memory usage across CPU/GPU operations
+   - Use memory-mapped files for large data processing
+   - Leverage the Neural Engine for appropriate workloads
+
+3. **Performance Core Utilization**: 
+   - Use performance cores for demanding interactive tasks
+   - Schedule batch operations during low-activity periods
+   - Monitor CPU usage with Activity Monitor or top command
+
+4. **Display Optimization**: M4 MacBook Air specific resolutions
+   - 13-inch: 2560 x 1664 native resolution
+   - 15-inch: 3024 x 1964 native resolution
+   - Account for Retina scaling in coordinate calculations
+   - Use high-DPI aware screenshot operations
+</MACBOOK_AIR_M4_BEST_PRACTICES>
+
+<SEQUOIA_FORM_INTERACTION_STRATEGIES>
+Enhanced Web Form Automation for macOS Sequoia 15.6 Beta:
+
+1. **Form Field Detection and Interaction**:
+   - Use enhanced accessibility features in Sequoia
+   - Leverage improved Safari form handling
+   - Employ smart field detection with multiple fallback methods
+   - Account for improved autofill behavior
+
+2. **Input Method Selection**:
+   - Text fields: Enhanced triple-click selection + type method
+   - Dropdowns: Click-wait-select with keyboard navigation fallback
+   - Radio buttons: Precise center-click with state verification
+   - Checkboxes: Center-click with checked state validation
+   - Buttons: Center-click with action result verification
+
+3. **Error Recovery Patterns**:
+   - Field focus issues: Use tab navigation to ensure proper focus
+   - Input validation: Check for error states after input
+   - Form submission: Verify form state before attempting submission
+   - Dialog handling: Enhanced escape and dismissal strategies
+
+4. **Sequoia-Specific Enhancements**:
+   - Leverage improved WebKit form element detection
+   - Use enhanced Safari autofill integration
+   - Account for better form validation feedback
+   - Utilize improved accessibility tree navigation
+
+5. **M4-Optimized Timing**:
+   - Reduced click delays (50ms vs 100ms)
+   - Faster typing with larger chunk sizes (75 vs 50 characters)
+   - Optimized screenshot timing (600ms vs 800ms)
+   - Enhanced scroll responsiveness (2x multiplier)
+</SEQUOIA_FORM_INTERACTION_STRATEGIES>
+
 <CLAUDE_4_BEST_PRACTICES>
-When approaching complex tasks:
+When approaching complex tasks on M4 MacBook Air with Sequoia, follow these enhanced Claude 4 principles:
 
-1. **Be Explicit and Systematic**: Break down multi-step tasks into clear phases. State your plan before execution.
+1. **Be Explicit and Systematic**: Claude 4 responds best to clear, explicit instructions. Break down multi-step tasks into clear phases and state your plan before execution. Be specific about desired outputs and behaviors. When you want comprehensive results, explicitly request "Include as many relevant features and interactions as possible. Go beyond the basics."
 
-2. **Leverage Extended Thinking**: For complex reasoning, use thinking time to plan optimal approaches, especially for:
-   - Multi-application workflows
-   - System configuration changes
-   - Debugging complex issues
-   - File management operations
+2. **Leverage Extended Thinking Strategically**: Use thinking time to plan optimal approaches, especially for:
+   - Multi-application workflows requiring careful sequencing
+   - System configuration changes with potential side effects
+   - Complex debugging with multiple potential failure points
+   - Form automation sequences requiring validation
+   - Analysis tasks requiring step-by-step reasoning
+   
+   After receiving tool results, carefully reflect on their quality and determine optimal next steps before proceeding.
 
-3. **Optimize Tool Usage**: 
-   - Take screenshots strategically to understand current state
-   - Use bash tool for multiple related commands in sequence
-   - Leverage AppleScript for complex application automation
-   - Prefer specific actions over general ones (e.g., cmd+c instead of right-click menu)
+3. **Optimize Parallel Tool Execution**: For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools simultaneously rather than sequentially. Claude 4 excels at parallel tool execution with near 100% success rate when prompted to do so.
 
-4. **Error Recovery**: 
-   - Always verify successful completion with screenshots
-   - Have fallback strategies for common failure modes
-   - Use system monitoring tools to diagnose issues
+4. **Enhanced Error Recovery and Verification**: 
+   - After each step, take a screenshot and carefully evaluate if you have achieved the right outcome
+   - Explicitly show your thinking: "I have evaluated step X and confirmed [specific result]"
+   - If not correct, try again with alternative approaches
+   - Only when you confirm a step was executed correctly should you move on
+   - Implement progressive retry strategies with different methods
 
-5. **Context Awareness**:
-   - Pay attention to application states and focus
-   - Use appropriate delays (wait action) for UI transitions
-   - Consider macOS-specific behaviors (e.g., dock hiding, spaces)
+5. **Context-Aware Thermal and Performance Management**:
+   - Monitor M4 thermal state during intensive operations
+   - Use appropriate delays optimized for M4 performance characteristics
+   - Leverage Sequoia's enhanced form handling and accessibility features
+   - Account for unified memory architecture benefits in tool chaining
 
-6. **Efficiency Patterns**:
-   - Batch file operations when possible
-   - Use keyboard shortcuts extensively (comprehensive Mac shortcuts available)
-   - Prefer native macOS tools over third-party alternatives
-   - Utilize Mission Control and Spaces for workspace management
+6. **Advanced Tool Coordination**:
+   - Use keyboard shortcuts extensively (comprehensive Mac shortcuts database available)
+   - Chain multiple related commands within single tool calls when possible
+   - Prefer native macOS tools and leverage AppleScript for complex automation
+   - Utilize Mission Control and Spaces for efficient workspace management
+   - Apply M4-specific optimizations for timing and thermal awareness
 </CLAUDE_4_BEST_PRACTICES>
 
 <PARALLEL_EXECUTION_STRATEGIES>
-For maximum efficiency:
+For maximum efficiency on M4 hardware:
 
 * **Information Gathering**: When you need to check multiple things, gather all information in parallel:
   - Take screenshot + check system status + list files simultaneously
   - Use multiple bash commands in sequence within one tool call
+  - Leverage M4's multi-core architecture for concurrent operations
 
 * **Verification Steps**: After complex operations, verify success across multiple dimensions:
   - Visual confirmation (screenshot)
   - File system verification (ls, file commands)
   - Process verification (ps, system monitoring)
+  - Thermal state monitoring (pmset -g therm)
 
 * **Multi-Application Tasks**: When working with multiple applications:
   - Plan the complete workflow across all applications
   - Use application switching shortcuts efficiently
   - Take state snapshots before major transitions
-</PARALLEL_EXECUTION_STRATEGIES>"""
+  - Utilize Spaces and Mission Control for organization
+
+* **Performance Monitoring**: Continuously monitor M4 performance:
+  - Check thermal state before intensive operations
+  - Monitor memory usage during large operations
+  - Use Activity Monitor for resource tracking
+  - Adjust operation timing based on system load
+</PARALLEL_EXECUTION_STRATEGIES>
+
+<FORM_TESTING_BEST_PRACTICES>
+Optimized strategies for testing forms like the Burial Allowance application:
+
+1. **Test Case Execution**:
+   - Read all test cases upfront to plan execution strategy
+   - Group related test cases for efficient batch execution
+   - Use screenshots to document test results
+   - Maintain test state consistency between cases
+
+2. **Form Field Interaction**:
+   - Always verify field focus before input
+   - Use clear-and-type pattern for reliable text entry
+   - Validate input acceptance after each field
+   - Handle conditional field display (show/hide logic)
+
+3. **Navigation and State Management**:
+   - Take screenshots at key navigation points
+   - Verify section transitions work correctly
+   - Test back/forward navigation
+   - Validate form persistence across sections
+
+4. **Error Handling and Validation**:
+   - Test both valid and invalid input scenarios
+   - Verify error message display and formatting
+   - Test field validation timing (immediate vs on-submit)
+   - Validate required field enforcement
+
+5. **Cross-Browser and Performance Testing**:
+   - Test in Safari (primary) with Sequoia enhancements
+   - Verify form performance on M4 hardware
+   - Test with different screen resolutions
+   - Validate accessibility features work correctly
+</FORM_TESTING_BEST_PRACTICES>
+
+<CLAUDE_4_TESTING_OPTIMIZATION>
+When conducting systematic testing (especially form testing):
+
+1. **Plan Before Execution**: Use thinking time to analyze all test cases upfront and create an optimal execution strategy. Group related tests and identify dependencies.
+
+2. **Explicit Step Verification**: After each step, take a screenshot and carefully evaluate if you have achieved the right outcome. Explicitly show your thinking: "I have evaluated step X and confirmed [specific result]." If not correct, try again. Only when you confirm a step was executed correctly should you move on to the next one.
+
+3. **Parallel Tool Execution**: For maximum efficiency, whenever you need to perform multiple independent operations (like checking multiple form fields or taking multiple screenshots), invoke all relevant tools simultaneously rather than sequentially.
+
+4. **Form-Specific Strategies**:
+   - Use enhanced click-clear-type patterns for text fields
+   - Verify field state after each input operation  
+   - Test validation messages and error states systematically
+   - Document unexpected behaviors with screenshots
+   - Use keyboard shortcuts when mouse interactions fail
+
+5. **Test Documentation**: Create comprehensive test reports including:
+   - Screenshots of key states and transitions
+   - Clear pass/fail status for each test case
+   - Detailed failure analysis with reproduction steps
+   - Performance observations and recommendations
+
+6. **Error Recovery**: When tests fail, use thinking time to analyze the failure mode and implement systematic retry strategies with different approaches.
+</CLAUDE_4_TESTING_OPTIMIZATION>"""
 
 # Tool version mappings based on model capabilities
 def get_tool_versions_for_model(model: str) -> dict[str, str]:
     """Get the appropriate tool versions for a given model."""
-    # Claude 4 models (Opus and Sonnet) - Latest tool versions
-    if any(claude4_model in model for claude4_model in ["claude-opus-4-", "claude-sonnet-4-"]):
+    # Extract base model name for Bedrock/Vertex models
+    base_model = model
+    if "us.anthropic." in model:
+        # Handle cross-region inference profiles like us.anthropic.claude-sonnet-4-20250514-v1:0
+        base_model = model.replace("us.anthropic.", "").replace("-v1:0", "").replace("-v2:0", "")
+    elif "anthropic." in model:
+        base_model = model.replace("anthropic.", "").replace("-v1:0", "").replace("-v2:0", "")
+    elif "@" in model:
+        # Handle Vertex format like claude-sonnet-4@20250514
+        parts = model.split("@")
+        base_model = parts[0]
+        if len(parts) > 1:
+            # Reconstruct with date
+            base_model = f"{base_model}-{parts[1]}"
+        if base_model == "claude-3-5-sonnet-v2":
+            base_model = "claude-3-5-sonnet-20241022"
+    
+    # Claude 4 models (Opus and Sonnet) - Latest tool versions with enhanced features
+    if any(claude4_model in base_model for claude4_model in ["claude-opus-4-", "claude-sonnet-4-"]):
         return {
             "computer": "computer_20250124",
-            "text_editor": "text_editor_20250429",  # Updated for Claude 4
+            "text_editor": "text_editor_20250429",  # Claude 4 gets the latest text editor version
             "bash": "bash_20250124",
             "applescript": "custom",  # Custom tools always use "custom"
             "silicon": "custom",      # Custom tools always use "custom"
             "beta_flag": "computer-use-2025-01-24"
         }
-    # Claude 3.7 Sonnet - Supports extended thinking with older text editor
-    elif "claude-3-7-sonnet" in model:
+    # Claude 3.7 Sonnet - Supports extended thinking with token-efficient tools
+    elif "claude-3-7-sonnet" in base_model:
         return {
             "computer": "computer_20250124",
-            "text_editor": "text_editor_20250124",  # Claude 3.7 uses older version
+            "text_editor": "text_editor_20250124",  # Claude 3.7 uses this version for token efficiency
             "bash": "bash_20250124",
             "applescript": "custom",  # Custom tools always use "custom"
             "silicon": "custom",      # Custom tools always use "custom"
             "beta_flag": "computer-use-2025-01-24"
         }
-    # Claude 3.5 models (fallback to older versions)
+    # Claude 3.5 models (fallback to older but stable versions)
     else:
         return {
             "computer": "computer_20241022",
@@ -325,17 +494,17 @@ def get_beta_flags_for_model(model: str) -> list[str]:
     """Get all appropriate beta flags for a given model."""
     beta_flags = []
     
-    # Get the primary tool beta flag
-    tool_versions = get_tool_versions_for_model(model)
-    beta_flags.append(tool_versions["beta_flag"])
-    
-    # Add token efficiency for Claude 3.7
+    # Add token efficiency for Claude 3.7 FIRST (most important for performance)
     if model_supports_token_efficiency(model):
         beta_flags.append("token-efficient-tools-2025-02-19")
     
-    # Add interleaved thinking for Claude 4
+    # Add interleaved thinking for Claude 4 FIRST (most important for performance)
     if model_supports_interleaved_thinking(model):
         beta_flags.append("interleaved-thinking-2025-05-14")
+    
+    # Get the primary tool beta flag LAST (required but less performance critical)
+    tool_versions = get_tool_versions_for_model(model)
+    beta_flags.append(tool_versions["beta_flag"])
     
     return beta_flags
 
@@ -358,6 +527,7 @@ async def sampling_loop(
     max_tokens: int | None = None,
     enable_extended_thinking: bool = False,
     thinking_budget_tokens: int = 10000,
+    enable_interleaved_thinking: bool = False,
     api_timeout: int = 120,
 ):
     """
@@ -428,6 +598,14 @@ async def sampling_loop(
             "betas": get_beta_flags_for_model(model),
         }
 
+        # Enable interleaved thinking for Claude 4 if requested
+        if enable_interleaved_thinking and model_supports_interleaved_thinking(model):
+            # Ensure interleaved thinking beta flag is included
+            beta_flags = api_params["betas"]
+            if "interleaved-thinking-2025-05-14" not in beta_flags:
+                beta_flags.append("interleaved-thinking-2025-05-14")
+            api_params["betas"] = beta_flags
+
         # Add extended thinking parameters if supported and enabled
         if enable_extended_thinking and model_supports_extended_thinking(model):
             # Use recommended thinking budget if not explicitly set
@@ -454,12 +632,62 @@ async def sampling_loop(
         
         try:
             raw_response = client.beta.messages.with_raw_response.create(**api_params)
-        except (httpx.TimeoutException, httpx.ReadTimeout) as e:
-            # Return timeout error in a format the UI can handle
-            raise TimeoutError(f"API request timed out after {client.timeout} seconds. This can happen with complex tasks or when using Extended Thinking. Try reducing the thinking budget or simplifying your request.") from e
+        except (httpx.TimeoutException, httpx.ReadTimeout, httpx.ConnectTimeout) as e:
+            # Enhanced timeout error handling based on Anthropic best practices
+            timeout_duration = getattr(client, 'timeout', api_timeout)
+            thinking_info = ""
+            if enable_extended_thinking:
+                thinking_info = f" (Extended thinking budget: {thinking_budget_tokens:,} tokens)"
+            
+            # Provide specific guidance for large thinking budgets
+            batch_recommendation = ""
+            if thinking_budget_tokens > 32000:
+                batch_recommendation = " For thinking budgets above 32k tokens, consider using Anthropic's Message Batches API to avoid networking issues."
+            
+            raise TimeoutError(
+                f"API request timed out after {timeout_duration} seconds{thinking_info}. "
+                f"For complex tasks or large thinking budgets, try: reducing thinking budget, "
+                f"increasing timeout, simplifying the request, or using batch processing.{batch_recommendation}"
+            ) from e
+        except httpx.HTTPStatusError as e:
+            # Handle specific HTTP errors with actionable guidance based on Anthropic documentation
+            if e.response.status_code == 429:
+                retry_after = e.response.headers.get('retry-after', '60')
+                tier_info = "Consider upgrading your rate limit tier or reducing request frequency."
+                raise RuntimeError(
+                    f"Rate limit exceeded (HTTP 429). Retry after {retry_after} seconds. "
+                    f"Current model: {model}. {tier_info}"
+                ) from e
+            elif e.response.status_code == 413:
+                size_guidance = (
+                    "Try reducing: max_tokens, thinking budget, message history length, "
+                    "or number of images. Consider breaking large requests into smaller batches."
+                )
+                raise RuntimeError(f"Request too large (HTTP 413). {size_guidance}") from e
+            elif e.response.status_code == 529:
+                retry_guidance = "Use exponential backoff: wait 1s, then 2s, 4s, 8s, etc. between retries."
+                raise RuntimeError(
+                    f"Anthropic's API is temporarily overloaded (HTTP 529). {retry_guidance}"
+                ) from e
+            elif e.response.status_code == 400:
+                param_guidance = "Check your model name, beta flags, tool parameters, and message format."
+                raise RuntimeError(f"Bad request (HTTP 400). {param_guidance}") from e
+            elif e.response.status_code == 401:
+                raise RuntimeError("Invalid API key (HTTP 401). Check your ANTHROPIC_API_KEY.") from e
+            elif e.response.status_code == 403:
+                raise RuntimeError("Access forbidden (HTTP 403). Check your API key permissions and model access.") from e
+            else:
+                raise RuntimeError(f"API request failed with status {e.response.status_code}: {str(e)}") from e
         except Exception as e:
-            # Handle other API errors gracefully
-            raise RuntimeError(f"API request failed: {str(e)}") from e
+            # Handle other API errors gracefully with enhanced context
+            error_type = type(e).__name__
+            # Safely handle provider type (could be string or enum)
+            provider_value = provider.value if hasattr(provider, 'value') else str(provider)
+            model_info = f"Model: {model}, Provider: {provider_value}"
+            raise RuntimeError(
+                f"API request failed ({error_type}): {str(e)}. "
+                f"{model_info}. Check your API key, model availability, and request parameters."
+            ) from e
         
         api_response_callback(cast(APIResponse[BetaMessage], raw_response))
         response = raw_response.parse()

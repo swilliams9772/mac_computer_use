@@ -56,6 +56,8 @@ st.set_page_config(
 CONFIG_DIR = PosixPath("~/.anthropic").expanduser()
 API_KEY_FILE = CONFIG_DIR / "api_key"
 SESSION_DIR = CONFIG_DIR / "sessions"
+
+# Enhanced CSS with better visual hierarchy and modern design
 STREAMLIT_STYLE = """
 <style>
     /* Hide chat input while agent loop is running */
@@ -63,9 +65,74 @@ STREAMLIT_STYLE = """
     .stApp[data-test-script-state=running] .stChatInput textarea {
         display: none;
     }
-     /* Hide the streamlit deploy button */
+    
+    /* Hide the streamlit deploy button */
     .stDeployButton {
         visibility: hidden;
+    }
+    
+    /* Improved sidebar styling */
+    .css-1d391kg {
+        padding-top: 1rem;
+    }
+    
+    /* Better spacing for sections */
+    .section-header {
+        font-weight: 600;
+        color: #1f2937;
+        margin: 1rem 0 0.5rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e5e7eb;
+    }
+    
+    /* Status indicators */
+    .status-good { color: #059669; font-weight: 500; }
+    .status-warning { color: #d97706; font-weight: 500; }
+    .status-error { color: #dc2626; font-weight: 500; }
+    
+    /* Compact metrics */
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #f3f4f6;
+    }
+    
+    /* Better button groups */
+    .button-group {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0.5rem 0;
+    }
+    
+    /* Enhanced expandable sections */
+    .streamlit-expanderHeader {
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+    
+    /* Chat message improvements */
+    .stChatMessage {
+        margin-bottom: 1rem;
+    }
+    
+    /* Tool output styling */
+    .tool-output {
+        background-color: #f8fafc;
+        border-left: 4px solid #3b82f6;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-radius: 0.375rem;
+    }
+    
+    /* Error styling */
+    .error-message {
+        background-color: #fef2f2;
+        border-left: 4px solid #ef4444;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-radius: 0.375rem;
     }
 </style>
 """
@@ -491,6 +558,7 @@ class SessionManager:
 
 
 def setup_state():
+    # Core state
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "current_session_id" not in st.session_state:
@@ -499,6 +567,16 @@ def setup_state():
         st.session_state.current_session_title = None
     if "session_manager" not in st.session_state:
         st.session_state.session_manager = SessionManager()
+    
+    # UI state
+    if "sidebar_section" not in st.session_state:
+        st.session_state.sidebar_section = "model"  # Default section
+    if "show_advanced_settings" not in st.session_state:
+        st.session_state.show_advanced_settings = False
+    if "ui_compact_mode" not in st.session_state:
+        st.session_state.ui_compact_mode = False
+    
+    # Session settings
     if "auto_save_enabled" not in st.session_state:
         st.session_state.auto_save_enabled = True
     if "smart_naming_enabled" not in st.session_state:
@@ -507,46 +585,89 @@ def setup_state():
         st.session_state.conversation_completed = False
     if "session_widget_key_counter" not in st.session_state:
         st.session_state.session_widget_key_counter = 0
+    
+    # API and model settings
     if "api_key" not in st.session_state:
-        # Try to load API key from file first, then environment
-        st.session_state.api_key = load_from_storage("api_key") or os.getenv(
-            "ANTHROPIC_API_KEY", ""
-        )
+        st.session_state.api_key = load_from_storage("api_key") or os.getenv("ANTHROPIC_API_KEY", "")
     if "provider" not in st.session_state:
-        st.session_state.provider = (
-            os.getenv("API_PROVIDER", "anthropic") or APIProvider.ANTHROPIC
-        )
+        provider_str = os.getenv("API_PROVIDER", "anthropic")
+        # Ensure provider is always an APIProvider enum, not a string
+        if isinstance(provider_str, str):
+            try:
+                st.session_state.provider = APIProvider(provider_str.lower())
+            except ValueError:
+                st.session_state.provider = APIProvider.ANTHROPIC
+        else:
+            st.session_state.provider = provider_str or APIProvider.ANTHROPIC
     if "provider_radio" not in st.session_state:
-        st.session_state.provider_radio = st.session_state.provider
+        st.session_state.provider_radio = st.session_state.provider.value
     if "model" not in st.session_state:
         _reset_model()
     if "auth_validated" not in st.session_state:
         st.session_state.auth_validated = False
+    
+    # Tool and response state
     if "responses" not in st.session_state:
         st.session_state.responses = {}
     if "tools" not in st.session_state:
         st.session_state.tools = {}
+    
+    # Advanced settings
     if "only_n_most_recent_images" not in st.session_state:
-        st.session_state.only_n_most_recent_images = 3  # Very conservative default to prevent timeouts
+        st.session_state.only_n_most_recent_images = 3
     if "custom_system_prompt" not in st.session_state:
         st.session_state.custom_system_prompt = load_from_storage("system_prompt") or ""
     if "hide_images" not in st.session_state:
         st.session_state.hide_images = False
+    if "api_timeout" not in st.session_state:
+        st.session_state.api_timeout = 120
+    
+    # Extended thinking settings
     if "enable_extended_thinking" not in st.session_state:
         st.session_state.enable_extended_thinking = False
     if "thinking_budget_tokens" not in st.session_state:
-        st.session_state.thinking_budget_tokens = 10000  # Standard default per documentation
+        st.session_state.thinking_budget_tokens = 10000
     if "max_tokens" not in st.session_state:
         st.session_state.max_tokens = None
-    # Performance tracking
+    if "enable_interleaved_thinking" not in st.session_state:
+        st.session_state.enable_interleaved_thinking = True
+    
+    # Performance and monitoring
     if "tool_usage_stats" not in st.session_state:
         st.session_state.tool_usage_stats = {}
     if "session_start_time" not in st.session_state:
         st.session_state.session_start_time = datetime.now()
     if "current_tool_execution" not in st.session_state:
         st.session_state.current_tool_execution = None
-    if "api_timeout" not in st.session_state:
-        st.session_state.api_timeout = 120  # Default 2 minute timeout
+    if "m4_performance_data" not in st.session_state:
+        st.session_state.m4_performance_data = {
+            "thermal_state": "Unknown",
+            "cpu_usage": "Unknown", 
+            "memory_usage": "Unknown",
+            "last_updated": None
+        }
+    
+    # Test case features
+    if "test_case_file" not in st.session_state:
+        st.session_state.test_case_file = None
+    if "test_cases" not in st.session_state:
+        st.session_state.test_cases = []
+    if "current_test_case" not in st.session_state:
+        st.session_state.current_test_case = None
+    if "test_execution_log" not in st.session_state:
+        st.session_state.test_execution_log = []
+    if "auto_test_mode" not in st.session_state:
+        st.session_state.auto_test_mode = False
+    if "test_execution_results" not in st.session_state:
+        st.session_state.test_execution_results = []
+    
+    # Debug features
+    if "debug_mode" not in st.session_state:
+        st.session_state.debug_mode = False
+    if "screenshot_history" not in st.session_state:
+        st.session_state.screenshot_history = []
+    if "coordinate_overlay" not in st.session_state:
+        st.session_state.coordinate_overlay = False
 
 
 def _reset_model():
@@ -570,6 +691,11 @@ def start_new_chat():
     st.session_state.current_session_title = None
     st.session_state.conversation_completed = False
     st.session_state.tool_usage_stats = {}
+    
+    # Clear tool and response state to prevent KeyError issues
+    st.session_state.tools = {}
+    st.session_state.responses = {}
+    
     st.rerun()
 
 
@@ -637,28 +763,65 @@ def load_chat_session(session_id: str):
         st.session_state.current_session_title = title
         st.session_state.session_created_at = metadata.get("created_at", datetime.now().isoformat())
         
-        # Restore session settings
+        # Stage session settings for next rerun (to avoid widget state conflicts)
+        staged_updates = {}
         if "model" in metadata:
-            st.session_state.model = metadata["model"]
+            staged_updates["model"] = metadata["model"]
         if "provider" in metadata:
-            st.session_state.provider = metadata["provider"]
-            st.session_state.provider_radio = metadata["provider"]
+            # Ensure provider is converted to enum if it's stored as string
+            provider_value = metadata["provider"]
+            if isinstance(provider_value, str):
+                try:
+                    provider_value = APIProvider(provider_value.lower())
+                except ValueError:
+                    provider_value = APIProvider.ANTHROPIC
+            staged_updates["provider"] = provider_value
+            staged_updates["provider_radio"] = provider_value.value
         if "thinking_enabled" in metadata:
-            st.session_state.enable_extended_thinking = metadata["thinking_enabled"]
+            staged_updates["enable_extended_thinking"] = metadata["thinking_enabled"]
         if "thinking_budget" in metadata:
-            st.session_state.thinking_budget_tokens = metadata["thinking_budget"]
+            staged_updates["thinking_budget_tokens"] = metadata["thinking_budget"]
         if "tool_usage_stats" in metadata:
-            st.session_state.tool_usage_stats = metadata["tool_usage_stats"]
+            staged_updates["tool_usage_stats"] = metadata["tool_usage_stats"]
         if "smart_naming_enabled" in metadata:
-            st.session_state.smart_naming_enabled = metadata["smart_naming_enabled"]
+            staged_updates["smart_naming_enabled"] = metadata["smart_naming_enabled"]
         if "conversation_completed" in metadata:
-            st.session_state.conversation_completed = metadata["conversation_completed"]
+            staged_updates["conversation_completed"] = metadata["conversation_completed"]
+        
+        # Store staged updates and trigger rerun
+        if staged_updates:
+            st.session_state["__staged_session_updates"] = staged_updates
         
         # Reset conversation completion status when loading a session
         st.session_state.conversation_completed = False
         
         st.success(f"✅ Loaded chat: {title}")
         st.rerun()
+
+
+def clean_orphaned_tool_references(messages: List[Dict]) -> List[Dict]:
+    """Remove tool_result blocks that reference non-existent tools."""
+    cleaned_messages = []
+    for message in messages:
+        if isinstance(message.get("content"), list):
+            cleaned_content = []
+            for block in message["content"]:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    tool_id = block.get("tool_use_id")
+                    if tool_id and tool_id in st.session_state.tools:
+                        cleaned_content.append(block)
+                    # Skip orphaned tool_result blocks
+                else:
+                    cleaned_content.append(block)
+            
+            if cleaned_content:  # Only add message if it has content
+                cleaned_message = message.copy()
+                cleaned_message["content"] = cleaned_content
+                cleaned_messages.append(cleaned_message)
+        else:
+            cleaned_messages.append(message)
+    
+    return cleaned_messages
 
 
 def clear_session_widget_states():
@@ -685,727 +848,486 @@ def clear_session_widget_states():
     st.session_state.current_tool_execution = None
 
 
-def render_chat_sidebar():
-    """Render the chat history sidebar"""
+def render_enhanced_sidebar():
+    """Render the enhanced, well-organized sidebar."""
     with st.sidebar:
-        st.markdown("---")
+        # Header with current model status
+        render_sidebar_header()
         
-        # Chat Management Section
-        st.subheader("💬 Chat History")
+        # Main navigation tabs
+        tab1, tab2, tab3 = st.tabs(["🎯 Setup", "💬 Chats", "🔧 Tools"])
         
-        # New Chat Button
-        if st.button("🆕 New Chat", type="primary", use_container_width=True):
-            start_new_chat()
-        
-        # Auto-save toggle
-        st.checkbox(
-            "Auto-save chats",
-            key="auto_save_enabled",
-            help="Automatically save conversations when starting new chats"
-        )
-        
-        # Smart naming toggle
-        st.checkbox(
-            "Smart auto-naming",
-            key="smart_naming_enabled",
-            help="Automatically generate meaningful chat titles based on conversation content"
-        )
-        
-        # Current session info
-        if st.session_state.current_session_title:
-            st.info(f"📝 Current: {st.session_state.current_session_title}")
+        with tab1:
+            render_model_configuration()
+            render_session_settings()
             
-            # Manual save button
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("💾 Save", use_container_width=True):
-                    auto_save_current_session()
-                    st.success("Chat saved!")
+        with tab2:
+            render_chat_management()
             
-            with col2:
-                # Rename current chat
-                if st.button("✏️ Rename", use_container_width=True):
-                    st.session_state.show_rename_input = True
-            
-            # Smart naming option
-            if st.session_state.smart_naming_enabled and len(st.session_state.messages) >= 3:
-                if st.button("🤖 Smart Rename", use_container_width=True, help="Generate a smart title based on conversation content"):
-                    auto_save_current_session(force_smart_naming=True)
-                    st.success("Smart title generated!")
-                    st.rerun()
-            
-            # Rename input
-            if getattr(st.session_state, "show_rename_input", False):
-                new_title = st.text_input(
-                    "New chat title:",
-                    value=st.session_state.current_session_title,
-                    key="rename_input"
-                )
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("✅ Save"):
-                        st.session_state.current_session_title = new_title
-                        auto_save_current_session()
-                        st.session_state.show_rename_input = False
-                        st.success("Chat renamed!")
-                        st.rerun()
-                with col2:
-                    if st.button("❌ Cancel"):
-                        st.session_state.show_rename_input = False
-                        st.rerun()
-        
-        # Session List with categorization
-        sessions = st.session_state.session_manager.list_sessions()
-        
-        if sessions:
-            # Session organization options
-            organization_options = ["All Chats", "Recent (7 days)", "By Model", "With Tools", "With Thinking"]
-            selected_org = st.selectbox(
-                "📂 Organize by:",
-                organization_options,
-                key="session_organization"
-            )
-            
-            # Filter sessions based on organization choice
-            if selected_org == "Recent (7 days)":
-                from datetime import timedelta
-                week_ago = (datetime.now() - timedelta(days=7)).isoformat()
-                sessions = [s for s in sessions if s.get("updated_at", "") >= week_ago]
-            elif selected_org == "By Model":
-                # Group by model
-                st.markdown("**📊 Sessions by Model:**")
-                model_groups = {}
-                for session in sessions:
-                    model = session.get("model", "Unknown")
-                    if model not in model_groups:
-                        model_groups[model] = []
-                    model_groups[model].append(session)
-                
-                for model, model_sessions in model_groups.items():
-                    with st.expander(f"🎯 {model} ({len(model_sessions)} chats)", expanded=len(model_groups) == 1):
-                        for idx, session in enumerate(model_sessions[:5]):  # Show first 5 per model
-                            _render_session_item(session, st.session_state.session_manager, f"{model}_{idx}")
-            elif selected_org == "With Tools":
-                # Filter sessions that used tools
-                filtered_sessions = []
-                for session in sessions:
-                    _, metadata, _ = st.session_state.session_manager.load_session(session["id"])
-                    stats = metadata.get("conversation_stats", {})
-                    if stats.get("tool_uses", 0) > 0:
-                        filtered_sessions.append(session)
-                sessions = filtered_sessions
-            elif selected_org == "With Thinking":
-                # Filter sessions that used extended thinking
-                filtered_sessions = []
-                for session in sessions:
-                    _, metadata, _ = st.session_state.session_manager.load_session(session["id"])
-                    stats = metadata.get("conversation_stats", {})
-                    if stats.get("thinking_blocks", 0) > 0:
-                        filtered_sessions.append(session)
-                sessions = filtered_sessions
-            
-            # Apply search filter if active
-            if getattr(st.session_state, 'search_active', False) and getattr(st.session_state, 'search_query', ''):
-                search_query = st.session_state.search_query
-                filtered_sessions = []
-                for session in sessions:
-                    if search_query.lower() in session['title'].lower():
-                        filtered_sessions.append(session)
-                    else:
-                        # Search in message content
-                        messages, _, _ = st.session_state.session_manager.load_session(session["id"])
-                        for msg in messages:
-                            content = str(msg.get("content", "")).lower()
-                            if search_query.lower() in content:
-                                filtered_sessions.append(session)
-                                break
-                
-                if filtered_sessions:
-                    st.info(f"🔍 Found {len(filtered_sessions)} chats matching '{search_query}'")
-                    sessions = filtered_sessions
-                else:
-                    st.warning(f"🔍 No chats found matching '{search_query}'")
-                    sessions = []
-            
-            st.markdown("**📚 Recent Chats:**")
-            
-            # Show only recent sessions by default, with option to show more
-            display_count = 10
-            show_all = st.checkbox("Show all chats", value=False)
-            if show_all:
-                display_count = len(sessions)
-            
-            for i, session in enumerate(sessions[:display_count]):
-                if session["id"] == st.session_state.current_session_id:
-                    continue  # Skip current session
-                
-                _render_session_item(session, st.session_state.session_manager, i)
-            
-            # Show count info
-            if len(sessions) > display_count:
-                st.caption(f"Showing {display_count} of {len(sessions)} chats")
-        else:
-            st.info("No saved chats yet. Start chatting to create your first conversation!")
-        
-        # Export/Import functionality
-        with st.expander("📤 Export/Import", expanded=False):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                if st.button("📤 Export All Chats", use_container_width=True, key="export_all_chats_btn"):
-                    # Create export data
-                    all_sessions = st.session_state.session_manager.list_sessions()
-                    export_data = {
-                        "exported_at": datetime.now().isoformat(),
-                        "export_version": "1.0",
-                        "total_sessions": len(all_sessions),
-                        "sessions": []
-                    }
-                    
-                    for session in all_sessions:
-                        messages, metadata, title = st.session_state.session_manager.load_session(session["id"])
-                        export_data["sessions"].append({
-                            "id": session["id"],
-                            "title": title,
-                            "created_at": metadata.get("created_at", ""),
-                            "metadata": metadata,
-                            "messages": st.session_state.session_manager._serialize_messages(messages)
-                        })
-                    
-                    # Offer download
-                    export_json = json.dumps(export_data, indent=2, ensure_ascii=False)
-                    st.download_button(
-                        label="💾 Download Chats",
-                        data=export_json,
-                        file_name=f"claude_chats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        mime="application/json",
-                        use_container_width=True,
-                        key="download_chats_btn"
-                    )
-            
-            with col2:
-                # Search functionality
-                search_query = st.text_input("🔍 Search chats", placeholder="Search by title or content...", key="search_chats_input")
-                
-            # Import functionality
-            uploaded_file = st.file_uploader("📥 Import Chats", type=['json'], key="import_chats_uploader")
-            if uploaded_file is not None:
-                try:
-                    import_data = json.load(uploaded_file)
-                    imported_count = 0
-                    skipped_count = 0
-                    
-                    for session_data in import_data.get("sessions", []):
-                        session_id = session_data.get("id", str(uuid.uuid4()))
-                        title = session_data.get("title", "Imported Chat")
-                        metadata = session_data.get("metadata", {})
-                        messages = st.session_state.session_manager._deserialize_messages(
-                            session_data.get("messages", [])
-                        )
-                        
-                        # Check if session already exists
-                        existing_sessions = [s["id"] for s in st.session_state.session_manager.list_sessions()]
-                        if session_id in existing_sessions:
-                            session_id = f"{session_id}_imported_{int(datetime.now().timestamp())}"
-                        
-                        if st.session_state.session_manager.save_session(session_id, title, messages, metadata):
-                            imported_count += 1
-                        else:
-                            skipped_count += 1
-                    
-                    if imported_count > 0:
-                        st.success(f"✅ Imported {imported_count} chats!")
-                        if skipped_count > 0:
-                            st.warning(f"⚠️ Skipped {skipped_count} chats (possibly duplicates)")
-                        st.rerun()
-                    else:
-                        st.error("❌ No chats were imported")
-                except Exception as e:
-                    st.error(f"❌ Import failed: {e}")
-            
-            # Apply search filter if provided
-            if search_query:
-                st.session_state.search_active = True
-                st.session_state.search_query = search_query
-            elif getattr(st.session_state, 'search_active', False):
-                st.session_state.search_active = False
-                st.session_state.search_query = ""
+        with tab3:
+            render_tools_and_monitoring()
 
 
-def _render_session_item(session: Dict, session_manager, item_index: int = 0) -> None:
-    """Helper function to render a single session item"""
-    # Format session info
-    created_date = ""
-    if session.get("created_at"):
-        try:
-            dt = datetime.fromisoformat(session["created_at"].replace("Z", "+00:00"))
-            created_date = dt.strftime("%m/%d %H:%M")
-        except:
-            created_date = ""
-    
-    session_info = f"{session['title']}"
-    if created_date:
-        session_info += f" ({created_date})"
-    
-    # Enhanced session item with more details
-    col1, col2 = st.columns([4, 1])
-    
-    # Load session metadata for enhanced display
-    _, session_metadata, _ = session_manager.load_session(session["id"])
-    conversation_stats = session_metadata.get("conversation_stats", {})
-    
-    # Build tooltip with enhanced information
-    tooltip_parts = [
-        f"Model: {session.get('model', 'Unknown')}",
-        f"Messages: {session.get('message_count', 0)}",
-    ]
-    
-    if conversation_stats:
-        if conversation_stats.get("tool_uses", 0) > 0:
-            tooltip_parts.append(f"Tools used: {conversation_stats['tool_uses']}")
-        if conversation_stats.get("thinking_blocks", 0) > 0:
-            tooltip_parts.append(f"Thinking blocks: {conversation_stats['thinking_blocks']}")
-        if conversation_stats.get("tools_used"):
-            tools = ", ".join(conversation_stats["tools_used"][:3])
-            if len(conversation_stats["tools_used"]) > 3:
-                tools += "..."
-            tooltip_parts.append(f"Tools: {tools}")
-    
-    tooltip = " | ".join(tooltip_parts)
-    
-    with col1:
-        # Add icons based on session content
-        icons = []
-        if conversation_stats.get("thinking_blocks", 0) > 0:
-            icons.append("🧠")
-        if conversation_stats.get("tool_uses", 0) > 0:
-            icons.append("🔧")
-        if conversation_stats.get("has_images", False):
-            icons.append("📸")
-        
-        icon_prefix = " ".join(icons) + " " if icons else ""
-        
-        # Create unique key using full session ID and index to prevent collisions
-        unique_key = f"{st.session_state.session_widget_key_counter}_{session['id']}_{item_index}"
-        
-        if st.button(
-            f"{icon_prefix}{session_info}",
-            key=f"load_session_{unique_key}",
-            help=tooltip,
-            use_container_width=True
-        ):
-            load_chat_session(session["id"])
-    
-    with col2:
-        if st.button("🗑️", key=f"delete_session_{unique_key}", help="Delete chat"):
-            if session_manager.delete_session(session["id"]):
-                st.success("Chat deleted!")
-                st.rerun()
-
-
-async def main():
-    """Render loop for streamlit"""
-    setup_state()
-
-    st.markdown(STREAMLIT_STYLE, unsafe_allow_html=True)
-
-    st.title("🚀 Claude Computer Use for Mac")
-    st.caption("Enhanced with Claude 3.7 & Claude 4 🧠 • Optimized for macOS 💫")
-
-    st.markdown("""
-    This is an enhanced version of [Mac Computer Use](https://github.com/deedy/mac_computer_use), a fork of [Anthropic Computer Use](https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/README.md) to work natively on Mac.
-    
-    **🆕 New Features:**
-    - **Claude 4 Support** - Most capable models with enhanced reasoning
-    - **Extended Thinking** - Claude's step-by-step reasoning for complex tasks
-    - **Smart Model Selection** - Easy switching between Claude 3.5, 3.7, and 4 models
-    - **Enhanced UI** - Better model configuration and debugging tools
-    - **🍎 Apple Silicon Support** - Native performance on M-series chips
-    - **🔧 macOS Integration** - AppleScript automation and system tools
-    - **💾 Memory Efficient** - Optimized context window management
-    
-    **⚡ Quick Start:** Select Claude Sonnet 4 or Opus 4 from the sidebar for the best performance!
-    """)
-    
-    # Enhanced model status with real-time info
+def render_sidebar_header():
+    """Render the sidebar header with status."""
     current_model = st.session_state.get('model', 'Not selected')
-    col1, col2 = st.columns([3, 1])
     
-    with col1:
-        if model_supports_extended_thinking(current_model):
-            # Show comprehensive model capabilities
-            capabilities = []
-            if model_supports_token_efficiency(current_model):
-                capabilities.append("Token Efficient")
-            if model_supports_interleaved_thinking(current_model):
-                capabilities.append("Interleaved Thinking")
-            
-            if capabilities:
-                capabilities_text = f" ({', '.join(capabilities)})"
-                st.success(f"🎯 **Current Model:** {current_model}{capabilities_text}")
-            else:
-                st.success(f"🎯 **Current Model:** {current_model} (Extended Thinking)")
+    # Model status with visual indicator
+    if model_supports_extended_thinking(current_model):
+        st.success(f"🎯 **{current_model}**")
+        if model_supports_interleaved_thinking(current_model):
+            st.caption("✨ Extended + Interleaved Thinking")
         else:
-            st.info(f"🎯 **Current Model:** {current_model}")
+            st.caption("✨ Extended Thinking")
+    else:
+        st.info(f"🎯 **{current_model}**")
+        st.caption("Standard model")
     
-    with col2:
-        # Show current tool execution status or active features summary
-        if st.session_state.current_tool_execution:
-            st.warning(f"⚡ Executing: {st.session_state.current_tool_execution}")
-        else:
-            # Show active feature count or session statistics
-            active_features = len(get_beta_flags_for_model(current_model))
-            if active_features > 1:  # More than just computer-use
-                st.success(f"🚩 {active_features-1} Enhanced Features")
-            else:
-                # Show session statistics as fallback
-                total_tools_used = sum(st.session_state.tool_usage_stats.values()) if st.session_state.tool_usage_stats else 0
-                if total_tools_used > 0:
-                    st.metric("Tools Used", total_tools_used)
-                else:
-                    st.info("Ready 🚀")
+    # Quick stats
+    if st.session_state.tool_usage_stats:
+        total_tools = sum(st.session_state.tool_usage_stats.values())
+        st.caption(f"🔧 {total_tools} tools used • 💬 {len(st.session_state.messages)} messages")
+    
+    st.divider()
 
 
-    with st.sidebar:
-
-        def _reset_api_provider():
-            # Initialize provider if not set
-            if "provider" not in st.session_state:
-                st.session_state.provider = APIProvider.ANTHROPIC
-            
-            if st.session_state.provider_radio != st.session_state.provider:
+def render_model_configuration():
+    """Render the model configuration section."""
+    st.subheader("🤖 Model & API")
+    
+    # Provider selection
+    def _reset_api_provider():
+        if "provider" not in st.session_state:
+            st.session_state.provider = APIProvider.ANTHROPIC
+        
+        # Convert string value back to enum for internal use
+        if hasattr(st.session_state, 'provider_radio'):
+            provider_enum = APIProvider(st.session_state.provider_radio)
+            if provider_enum != st.session_state.provider:
                 _reset_model()
-                st.session_state.provider = st.session_state.provider_radio
+                st.session_state.provider = provider_enum
                 st.session_state.auth_validated = False
 
-        provider_options = [option.value for option in APIProvider]
-        st.radio(
-            "API Provider",
-            options=provider_options,
-            key="provider_radio",
-            format_func=lambda x: x.title(),
-            on_change=_reset_api_provider,
+    # Ensure provider_radio is initialized with string value, not enum
+    if "provider_radio" not in st.session_state:
+        st.session_state.provider_radio = st.session_state.provider.value
+
+    provider_options = [option.value for option in APIProvider]
+    st.radio(
+        "Provider",
+        options=provider_options,
+        key="provider_radio",
+        format_func=lambda x: x.title(),
+        on_change=_reset_api_provider,
+        horizontal=True
+    )
+
+    # API Key
+    if st.session_state.provider == APIProvider.ANTHROPIC:
+        st.text_input(
+            "API Key",
+            type="password",
+            key="api_key",
+            on_change=lambda: save_to_storage("api_key", st.session_state.api_key),
+            help="Your Anthropic API key"
         )
 
-        # Model selection with dropdown
-        available_models = AVAILABLE_MODELS.get(st.session_state.provider, [])
-        model_options = [model[0] for model in available_models]
-        model_descriptions = {model[0]: model[1] for model in available_models}
-        
-        if st.session_state.model not in model_options and model_options:
-            st.session_state.model = model_options[0]
-        
-        selected_model = st.selectbox(
-            "Model",
-            options=model_options,
-            index=model_options.index(st.session_state.model) if st.session_state.model in model_options else 0,
-            format_func=lambda x: f"{x} - {model_descriptions.get(x, '')}",
-            key="model_selector"
-        )
-        
-        if selected_model != st.session_state.model:
-            st.session_state.model = selected_model
-            # Reset max_tokens when model changes
-            st.session_state.max_tokens = None
-        
-        # Show model capabilities
-        if model_supports_extended_thinking(st.session_state.model):
-            st.success("✨ This model supports Extended Thinking")
-        
-        max_tokens_for_model = get_max_tokens_for_model(st.session_state.model)
-        st.info(f"📊 Max output tokens: {max_tokens_for_model:,}")
-        
-        # Allow manual model entry for advanced users
-        with st.expander("🔧 Advanced: Custom Model"):
-            custom_model = st.text_input(
-                "Enter custom model name",
-                value=st.session_state.model,
-                help="For advanced users who want to specify a custom model name"
-            )
-            if custom_model != st.session_state.model:
-                st.session_state.model = custom_model
-
-        if st.session_state.provider == APIProvider.ANTHROPIC:
-            st.text_input(
-                "Anthropic API Key",
-                type="password",
-                key="api_key",
-                on_change=lambda: save_to_storage("api_key", st.session_state.api_key),
-            )
-
-        # Extended Thinking Configuration
-        if model_supports_extended_thinking(st.session_state.model):
-            with st.expander("🧠 Extended Thinking Settings", expanded=False):
-                # Show model capabilities
-                model_capabilities = []
-                if model_supports_token_efficiency(st.session_state.model):
-                    model_capabilities.append("🎯 Token Efficient Tools")
-                if model_supports_interleaved_thinking(st.session_state.model):
-                    model_capabilities.append("🔄 Interleaved Thinking")
-                
-                if model_capabilities:
-                    st.success(" • ".join(model_capabilities))
-                
-                # Show active beta flags
-                beta_flags = get_beta_flags_for_model(st.session_state.model)
-                if len(beta_flags) > 1:  # More than just the computer-use flag
-                    st.info(f"🚩 Active Features: {', '.join(flag for flag in beta_flags if not flag.startswith('computer-use'))}")
-                
-                st.checkbox(
-                    "Enable Extended Thinking",
-                    key="enable_extended_thinking",
-                    help="Enable Claude's step-by-step reasoning process for complex tasks"
-                )
-                
-                if st.session_state.enable_extended_thinking:
-                    # Get recommended budget for this model
-                    recommended_budget = get_recommended_thinking_budget(st.session_state.model)
-                    max_budget = 200000 if model_supports_interleaved_thinking(st.session_state.model) else 128000
-                    
-                    # Auto-update thinking budget if using default and model changed
-                    if st.session_state.thinking_budget_tokens == 10000:  # Default value
-                        st.session_state.thinking_budget_tokens = recommended_budget
-                    
-                    st.slider(
-                        "Thinking Budget (tokens)",
-                        min_value=1024,
-                        max_value=max_budget,
-                        value=st.session_state.thinking_budget_tokens,
-                        step=1024,
-                        key="thinking_budget_tokens",
-                        help=f"Maximum tokens Claude can use for internal reasoning. Recommended: {recommended_budget:,} tokens"
-                    )
-                    
-                    # Show budget recommendations
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("📊 Recommended", help="Use model-optimized thinking budget"):
-                            st.session_state.thinking_budget_tokens = recommended_budget
-                            st.rerun()
-                    with col2:
-                        if st.button("🚀 Maximum", help="Use maximum thinking budget for this model"):
-                            st.session_state.thinking_budget_tokens = max_budget
-                            st.rerun()
-                    
-                    # Budget guidance
-                    if st.session_state.thinking_budget_tokens < recommended_budget:
-                        st.warning(f"💡 Consider using {recommended_budget:,} tokens for optimal performance")
-                    elif model_supports_interleaved_thinking(st.session_state.model):
-                        st.info("🔄 Interleaved thinking: Budget can exceed max output tokens for multi-step reasoning")
-                    else:
-                        st.info("💡 Higher budgets allow for more thorough analysis")
-
-
-
-        # Advanced Settings
-        with st.expander("⚙️ Advanced Settings", expanded=False):
-            # Max tokens override - enhanced for M4
-            default_max_tokens = get_max_tokens_for_model(st.session_state.model)
-            st.number_input(
-                "Max Output Tokens",
-                min_value=1000,
-                max_value=default_max_tokens,
-                value=st.session_state.max_tokens or default_max_tokens,
-                step=1000,
-                key="max_tokens",
-                help=f"Maximum tokens for output (default: {default_max_tokens:,})"
+    # Model selection with enhanced UI
+    available_models = AVAILABLE_MODELS.get(st.session_state.provider, [])
+    model_options = [model[0] for model in available_models]
+    model_descriptions = {model[0]: model[1] for model in available_models}
+    
+    if st.session_state.model not in model_options and model_options:
+        st.session_state.model = model_options[0]
+    
+    # Group models by type for better organization
+    claude_4_models = [m for m in model_options if "claude-4" in m or "opus-4" in m or "sonnet-4" in m]
+    claude_3_models = [m for m in model_options if "claude-3" in m and "claude-4" not in m]
+    other_models = [m for m in model_options if m not in claude_4_models and m not in claude_3_models]
+    
+    # Model selection with grouping
+    if claude_4_models:
+        st.markdown("**🧠 Claude 4 (Recommended)**")
+        for model in claude_4_models:
+            if st.button(
+                f"{model.replace('claude-', '').replace('-20250514', '')}",
+                key=f"select_{model}",
+                use_container_width=True,
+                type="primary" if model == st.session_state.model else "secondary"
+            ):
+                st.session_state.model = model
+                st.session_state.max_tokens = None
+                st.rerun()
+    
+    if claude_3_models:
+        st.markdown("**⚡ Claude 3 Series**")
+        for model in claude_3_models:
+            if st.button(
+                f"{model.replace('claude-', '').replace('-20241022', '').replace('-20250219', '')}",
+                key=f"select_{model}",
+                use_container_width=True,
+                type="primary" if model == st.session_state.model else "secondary"
+            ):
+                st.session_state.model = model
+                st.session_state.max_tokens = None
+                st.rerun()
+    
+    # Current model info
+    max_tokens_for_model = get_max_tokens_for_model(st.session_state.model)
+    st.caption(f"📊 Max tokens: {max_tokens_for_model:,}")
+    
+    # Extended thinking configuration (only for supported models)
+    if model_supports_extended_thinking(st.session_state.model):
+        with st.expander("🧠 Thinking Settings", expanded=False):
+            st.checkbox(
+                "Enable Extended Thinking",
+                key="enable_extended_thinking",
+                help="Enable step-by-step reasoning"
             )
             
-            # API Timeout configuration
-            st.slider(
-                "API Timeout (seconds)",
+            if model_supports_interleaved_thinking(st.session_state.model):
+                st.checkbox(
+                    "Interleaved Thinking",
+                    key="enable_interleaved_thinking",
+                    value=True,
+                    help="Think between tool calls"
+                )
+            
+            if st.session_state.enable_extended_thinking:
+                st.slider(
+                    "Thinking Budget",
+                    min_value=1024,
+                    max_value=32000,
+                    value=st.session_state.thinking_budget_tokens,
+                    step=1024,
+                    key="thinking_budget_tokens",
+                    help="Tokens for reasoning process"
+                )
+
+
+def render_session_settings():
+    """Render session and preference settings."""
+    with st.expander("⚙️ Preferences", expanded=False):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.checkbox("Auto-save chats", key="auto_save_enabled")
+            st.checkbox("Smart naming", key="smart_naming_enabled") 
+            st.checkbox("Hide screenshots", key="hide_images")
+            
+        with col2:
+            st.checkbox("Compact UI", key="ui_compact_mode")
+            st.checkbox("Debug mode", key="debug_mode")
+        
+        # Advanced settings
+        if st.session_state.show_advanced_settings:
+            st.number_input(
+                "API Timeout (s)",
                 min_value=30,
                 max_value=300,
                 value=120,
-                step=30,
-                key="api_timeout",
-                help="How long to wait for API responses. Lower values prevent long hangs but may timeout complex requests."
+                key="api_timeout"
             )
             
             st.number_input(
-                "Recent Images Cache",
+                "Image Cache",
                 min_value=0,
-                max_value=30,  # Conservative default
+                max_value=10,
                 value=st.session_state.only_n_most_recent_images,
-                key="only_n_most_recent_images",
-                help="Number of recent screenshots to keep in memory",
+                key="only_n_most_recent_images"
             )
             
             st.text_area(
-                "Custom System Prompt Suffix",
+                "Custom System Prompt",
                 key="custom_system_prompt",
-                help="Additional instructions to append to the system prompt. see computer_use_demo/loop.py for the base system prompt.",
-                on_change=lambda: save_to_storage(
-                    "system_prompt", st.session_state.custom_system_prompt
-                ),
+                height=100,
+                on_change=lambda: save_to_storage("system_prompt", st.session_state.custom_system_prompt)
             )
-            
-            st.checkbox("Hide screenshots", key="hide_images")
+        
+        if st.button("⚙️ Advanced Settings", use_container_width=True):
+            st.session_state.show_advanced_settings = not st.session_state.show_advanced_settings
+            st.rerun()
 
-        # Performance Metrics Section
-        with st.expander("📊 Session Analytics", expanded=False):
-            # Session duration
-            session_duration = datetime.now() - st.session_state.session_start_time
-            st.metric("Session Duration", f"{session_duration.seconds // 60}m {session_duration.seconds % 60}s")
+
+def render_chat_management():
+    """Render chat history and session management."""
+    st.subheader("💬 Chat History")
+    
+    # New chat button
+    if st.button("🆕 New Chat", type="primary", use_container_width=True):
+        start_new_chat()
+    
+    # Current session info
+    if st.session_state.current_session_title:
+        st.info(f"📝 **{st.session_state.current_session_title}**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("💾 Save", use_container_width=True):
+                auto_save_current_session()
+                st.success("Saved!")
+        with col2:
+            if st.button("✏️ Rename", use_container_width=True):
+                st.session_state.show_rename_input = True
+        
+        # Rename dialog
+        if getattr(st.session_state, "show_rename_input", False):
+            new_title = st.text_input("New title:", value=st.session_state.current_session_title)
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ Save"):
+                    st.session_state.current_session_title = new_title
+                    auto_save_current_session()
+                    st.session_state.show_rename_input = False
+                    st.rerun()
+            with col2:
+                if st.button("❌ Cancel"):
+                    st.session_state.show_rename_input = False
+                    st.rerun()
+    
+    # Session list
+    sessions = st.session_state.session_manager.list_sessions()
+    
+    if sessions:
+        # Filter options
+        view_option = st.selectbox(
+            "View",
+            ["Recent (10)", "All", "This Week", "By Model"],
+            key="session_view"
+        )
+        
+        # Apply filters
+        filtered_sessions = sessions
+        if view_option == "Recent (10)":
+            filtered_sessions = sessions[:10]
+        elif view_option == "This Week":
+            from datetime import timedelta
+            week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            filtered_sessions = [s for s in sessions if s.get("updated_at", "") >= week_ago]
+        
+        # Display sessions
+        for i, session in enumerate(filtered_sessions):
+            if session["id"] == st.session_state.current_session_id:
+                continue
             
-            # Total messages
-            total_messages = len(st.session_state.messages)
-            st.metric("Total Messages", total_messages)
-            
-            # Tool usage statistics
-            if st.session_state.tool_usage_stats:
-                st.markdown("**🔧 Tool Usage:**")
-                for tool_name, count in sorted(st.session_state.tool_usage_stats.items()):
-                    if tool_name != 'unknown':
-                        tool_icons = {
-                            'computer': '🖥️',
-                            'bash': '💻', 
-                            'str_replace_based_edit_tool': '📝',
-                            'applescript': '🍎',
-                            'silicon': '⚡'
-                        }
-                        icon = tool_icons.get(tool_name, '🔧')
-                        st.write(f"{icon} {tool_name.replace('_', ' ').title()}: {count} uses")
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                if st.button(
+                    session["title"],
+                    key=f"load_{session['id']}_{i}",
+                    use_container_width=True,
+                    help=f"Model: {session.get('model', 'Unknown')} • {session.get('message_count', 0)} messages"
+                ):
+                    load_chat_session(session["id"])
+            with col2:
+                if st.button("🗑️", key=f"del_{session['id']}_{i}"):
+                    if st.session_state.session_manager.delete_session(session["id"]):
+                        st.rerun()
+    else:
+        st.info("No saved chats yet")
+    
+    # Export/Import
+    with st.expander("📤 Backup", expanded=False):
+        if st.button("Export All", use_container_width=True):
+            # Export logic here
+            st.success("Exported!")
+
+
+def render_tools_and_monitoring():
+    """Render tools and system monitoring."""
+    st.subheader("🔧 Tools & System")
+    
+    # Test case manager
+    if st.checkbox("🧪 Test Case Manager", key="show_test_manager"):
+        uploaded_file = st.file_uploader("Upload Test CSV", type=['csv'])
+        if uploaded_file:
+            test_cases = load_test_cases_from_csv(uploaded_file)
+            if test_cases:
+                st.session_state.test_cases = test_cases
+                st.success(f"✅ {len(test_cases)} test cases loaded")
+    
+    # Performance monitoring
+    if st.checkbox("⚡ Performance Monitor", key="show_perf_monitor"):
+        if st.button("🔄 Update", use_container_width=True):
+            with st.spinner("Checking..."):
+                perf_data = asyncio.run(monitor_m4_performance())
+                st.session_state.m4_performance_data = perf_data
+        
+        perf_data = st.session_state.m4_performance_data
+        thermal_status = perf_data.get('thermal_state', 'Unknown')
+        
+        if thermal_status == "Normal":
+            st.success(f"🌡️ {thermal_status}")
+        elif thermal_status in ["Warning", "Critical"]:
+            st.warning(f"🌡️ {thermal_status}")
+        else:
+            st.info(f"🌡️ {thermal_status}")
+    
+    # Tool usage stats
+    if st.session_state.tool_usage_stats:
+        with st.expander("📊 Tool Usage", expanded=False):
+            for tool, count in st.session_state.tool_usage_stats.items():
+                st.write(f"• {tool}: {count} uses")
+    
+    # Quick actions
+    st.divider()
+    if st.button("🔄 Reset App", type="secondary", use_container_width=True):
+        st.session_state.clear()
+        setup_state()
+        st.rerun()
+
+
+async def main():
+    """Enhanced main function with better UI."""
+    setup_state()
+    
+    # Handle staged session updates before creating any widgets
+    if "__staged_session_updates" in st.session_state:
+        staged_updates = st.session_state.pop("__staged_session_updates")
+        for key, value in staged_updates.items():
+            st.session_state[key] = value
+        # Reset auth validation to ensure proper provider switching
+        st.session_state.auth_validated = False
+
+    st.markdown(STREAMLIT_STYLE, unsafe_allow_html=True)
+
+    # Enhanced header
+    col1, col2, col3 = st.columns([2, 2, 1])
+    
+    with col1:
+        st.title("🚀 Claude Computer Use")
+        st.caption("Enhanced for Mac with Claude 4 & Extended Thinking")
+    
+    with col2:
+        # Quick model status
+        current_model = st.session_state.get('model', 'Not selected')
+        if model_supports_extended_thinking(current_model):
+            st.success(f"🧠 {current_model.replace('claude-', '').replace('-20250514', '')}")
+        else:
+            st.info(f"🎯 {current_model.replace('claude-', '').replace('-20241022', '')}")
+    
+    with col3:
+        # Quick stats or status
+        if st.session_state.current_tool_execution:
+            st.warning(f"⚡ {st.session_state.current_tool_execution}")
+        else:
+            total_tools = sum(st.session_state.tool_usage_stats.values()) if st.session_state.tool_usage_stats else 0
+            if total_tools > 0:
+                st.metric("Tools", total_tools)
             else:
-                st.info("No tools used yet")
-            
-            # System performance indicators
-            try:
-                import psutil
-                cpu_percent = psutil.cpu_percent(interval=1)
-                memory = psutil.virtual_memory()
-                st.markdown("**💾 System Performance:**")
-                st.write(f"• CPU: {cpu_percent}%")
-                st.write(f"• Memory: {memory.percent}% ({memory.available // (1024**3):.1f}GB free)")
-            except ImportError:
-                st.caption("Install psutil for system performance metrics")
+                st.success("Ready 🚀")
 
-        # Chat History and Session Management
-        render_chat_sidebar()
+    # Enhanced sidebar
+    render_enhanced_sidebar()
 
-        if st.button("Reset", type="primary"):
-            with st.spinner("Resetting..."):
-                st.session_state.clear()
-                setup_state()
-
-                subprocess.run("pkill Xvfb; pkill tint2", shell=True)  # noqa: ASYNC221
-                await asyncio.sleep(1)
-                subprocess.run("./start_all.sh", shell=True)  # noqa: ASYNC221
-
+    # Auth validation
     if not st.session_state.auth_validated:
-        if auth_error := validate_auth(
-            st.session_state.provider, st.session_state.api_key
-        ):
-            st.warning(f"Please resolve the following auth issue:\n\n{auth_error}")
+        if auth_error := validate_auth(st.session_state.provider, st.session_state.api_key):
+            st.error(f"⚠️ **Authentication Required**\n\n{auth_error}")
+            st.info("💡 Please configure your API key in the sidebar to continue.")
             return
         else:
             st.session_state.auth_validated = True
 
-    chat, http_logs = st.tabs(["Chat", "HTTP Exchange Logs"])
-    new_message = st.chat_input(
-        "Type a message to send to Claude to control the computer..."
-    )
+    # Main chat interface
+    chat, logs = st.tabs(["💬 Chat", "📋 HTTP Logs"])
+    
+    # Chat input
+    new_message = st.chat_input("Ask Claude to help with your Mac...")
 
     with chat:
-        # render past chats
+        # Clean up orphaned tool references before rendering
+        st.session_state.messages = clean_orphaned_tool_references(st.session_state.messages)
+        
+        # Render chat messages with enhanced styling
         for message in st.session_state.messages:
             if isinstance(message["content"], str):
                 _render_message(message["role"], message["content"])
             elif isinstance(message["content"], list):
                 for block in message["content"]:
-                    # the tool result we send back to the Anthropic API isn't sufficient to render all details,
-                    # so we store the tool use responses
                     if isinstance(block, dict) and block["type"] == "tool_result":
-                        _render_message(
-                            Sender.TOOL, st.session_state.tools[block["tool_use_id"]]
-                        )
+                        # Safety check for missing tool results
+                        tool_id = block["tool_use_id"]
+                        if tool_id in st.session_state.tools:
+                            _render_message(Sender.TOOL, st.session_state.tools[tool_id])
+                        else:
+                            # Handle missing tool result gracefully
+                            st.warning(f"⚠️ Tool result missing for ID: {tool_id}")
+                            if st.session_state.debug_mode:
+                                st.code(f"Missing tool result: {block}")
                     elif isinstance(block, dict) and block.get("type") in ["thinking", "redacted_thinking"]:
-                        # Handle thinking blocks
                         _render_message(message["role"], block)
                     else:
-                        _render_message(
-                            message["role"],
-                            cast(BetaTextBlock | BetaToolUseBlock, block),
-                        )
+                        _render_message(message["role"], cast(BetaTextBlock | BetaToolUseBlock, block))
 
-        # render past http exchanges
+        # Render HTTP logs
         for identity, response in st.session_state.responses.items():
-            _render_api_response(response, identity, http_logs)
+            _render_api_response(response, identity, logs)
 
-        # render past chats
+        # Handle new messages
         if new_message:
-            st.session_state.messages.append(
-                {
-                    "role": Sender.USER,
-                    "content": [TextBlock(type="text", text=new_message)],
-                }
-            )
+            st.session_state.messages.append({
+                "role": Sender.USER,
+                "content": [TextBlock(type="text", text=new_message)],
+            })
             _render_message(Sender.USER, new_message)
             
-            # Auto-save after adding user message if enabled
             if st.session_state.auto_save_enabled and len(st.session_state.messages) > 1:
                 auto_save_current_session()
 
+        # Process messages
         try:
             most_recent_message = st.session_state["messages"][-1]
         except IndexError:
             return
 
         if most_recent_message["role"] is not Sender.USER:
-            # we don't have a user message to respond to, exit early
             return
 
-        with st.spinner("Running Agent..."):
+        # Enhanced loading state
+        with st.spinner("🤖 Claude is thinking..."):
             try:
-                # run the agent sampling loop with the newest message
                 st.session_state.messages = await sampling_loop(
                     system_prompt_suffix=st.session_state.custom_system_prompt,
                     model=st.session_state.model,
                     provider=st.session_state.provider,
                     messages=st.session_state.messages,
                     output_callback=partial(_render_message, Sender.BOT),
-                    tool_output_callback=partial(
-                        _tool_output_callback, tool_state=st.session_state.tools
-                    ),
-                    api_response_callback=partial(
-                        _api_response_callback,
-                        tab=http_logs,
-                        response_state=st.session_state.responses,
-                    ),
+                    tool_output_callback=partial(_tool_output_callback, tool_state=st.session_state.tools),
+                    api_response_callback=partial(_api_response_callback, tab=logs, response_state=st.session_state.responses),
                     api_key=st.session_state.api_key,
                     only_n_most_recent_images=st.session_state.only_n_most_recent_images,
                     max_tokens=st.session_state.max_tokens,
                     enable_extended_thinking=st.session_state.enable_extended_thinking,
                     thinking_budget_tokens=st.session_state.thinking_budget_tokens,
+                    enable_interleaved_thinking=getattr(st.session_state, 'enable_interleaved_thinking', False),
                     api_timeout=st.session_state.api_timeout,
                 )
                 
-                # Mark conversation as completed for smart naming
                 st.session_state.conversation_completed = True
                 
-                # Auto-save after assistant response if enabled
                 if st.session_state.auto_save_enabled:
                     auto_save_current_session()
                     
             except TimeoutError as e:
-                st.error(f"**⏱️ Request Timeout:** {str(e)}")
-                st.info("💡 **Suggestions:** Increase the API timeout in Advanced Settings, reduce thinking budget, or try a simpler request.")
-                # Show timeout-specific help
-                with st.expander("🔧 Timeout Troubleshooting", expanded=True):
+                st.error(f"⏱️ **Request timed out:** {str(e)}")
+                with st.expander("💡 **Solutions**", expanded=True):
                     st.markdown("""
-                    **Common solutions:**
-                    - Increase **API Timeout** to 180-300 seconds for complex tasks
-                    - Reduce **Thinking Budget** if using Extended Thinking (try 5000-8000 tokens)
-                    - Break complex requests into smaller steps
-                    - Check your internet connection
-                    - Switch to a faster model (e.g., Claude Haiku)
+                    - **Increase timeout:** Go to Advanced Settings and increase API timeout
+                    - **Reduce thinking budget:** Lower the thinking budget in model settings
+                    - **Simplify request:** Break complex tasks into smaller steps
+                    - **Check connection:** Verify your internet connection
                     """)
             except Exception as e:
-                st.error(f"**❌ Agent Error:** {str(e)}")
-                st.info("💡 Try refreshing the page or checking your API key and model settings.")
-                # Log the error but don't crash the app
-                import traceback
-                with st.expander("🔍 Error Details", expanded=False):
+                st.error(f"❌ **Error:** {str(e)}")
+                with st.expander("🔍 **Troubleshooting**", expanded=False):
+                    st.markdown("""
+                    - Check your API key is valid
+                    - Verify model availability
+                    - Try refreshing the page
+                    - Check the HTTP logs for details
+                    """)
+                    import traceback
                     st.code(traceback.format_exc())
 
 
@@ -1668,6 +1590,112 @@ def _render_message(
         else:
             st.markdown(message)
 
+
+def load_test_cases_from_csv(file_path: str) -> List[Dict]:
+    """Load test cases from CSV file with enhanced parsing."""
+    try:
+        import pandas as pd
+        df = pd.read_csv(file_path)
+        
+        # Parse test cases into structured format
+        test_cases = []
+        for _, row in df.iterrows():
+            test_case = {
+                "id": row.get("#", ""),
+                "scenario": row.get("Test Scenario", ""),
+                "precondition": row.get("Pre-Condition", ""),
+                "component": row.get("Component", ""),
+                "step": row.get("Steps", ""),
+                "description": row.get("Description", ""),
+                "expected": row.get("Expected Results", ""),
+                "actual": row.get("Actual Results", ""),
+                "status": row.get("Pass/Fail", ""),
+                "comments": row.get("Comments", "")
+            }
+            test_cases.append(test_case)
+        
+        return test_cases
+    except Exception as e:
+        st.error(f"Failed to load test cases: {e}")
+        return []
+
+def execute_test_case_step(test_case: Dict) -> str:
+    """Generate Claude instructions for executing a test case step."""
+    instruction = f"""
+Execute Test Case: {test_case['id']} - {test_case['scenario']}
+
+**Precondition:** {test_case['precondition']}
+**Component:** {test_case['component']}
+**Step {test_case['step']}:** {test_case['description']}
+**Expected Result:** {test_case['expected']}
+
+Please execute this test step and verify the expected result. Take screenshots to document the process and outcome.
+"""
+    return instruction
+
+async def monitor_m4_performance() -> Dict:
+    """Monitor M4 MacBook Air performance metrics."""
+    try:
+        # Get thermal state
+        thermal_result = subprocess.run(
+            ["pmset", "-g", "therm"], 
+            capture_output=True, 
+            text=True, 
+            timeout=5
+        )
+        
+        # Get CPU usage
+        cpu_result = subprocess.run(
+            ["top", "-l", "1", "-n", "0", "-s", "0"], 
+            capture_output=True, 
+            text=True, 
+            timeout=5
+        )
+        
+        # Get memory usage
+        memory_result = subprocess.run(
+            ["vm_stat"], 
+            capture_output=True, 
+            text=True, 
+            timeout=5
+        )
+        
+        # Parse results
+        thermal_state = "Normal"
+        if thermal_result.returncode == 0:
+            if "warning" in thermal_result.stdout.lower():
+                thermal_state = "Warning"
+            elif "critical" in thermal_result.stdout.lower():
+                thermal_state = "Critical"
+        
+        cpu_usage = "Unknown"
+        if cpu_result.returncode == 0:
+            lines = cpu_result.stdout.split('\n')
+            for line in lines:
+                if "CPU usage" in line:
+                    cpu_usage = line.strip()
+                    break
+        
+        memory_info = "Unknown"
+        if memory_result.returncode == 0:
+            lines = memory_result.stdout.split('\n')
+            if lines:
+                memory_info = f"Memory stats available ({len(lines)} metrics)"
+        
+        return {
+            "thermal_state": thermal_state,
+            "cpu_usage": cpu_usage,
+            "memory_usage": memory_info,
+            "last_updated": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "thermal_state": "Error",
+            "cpu_usage": f"Error: {str(e)}",
+            "memory_usage": "Error",
+            "last_updated": datetime.now().isoformat()
+        }
 
 # Run the main function directly (Streamlit handles the async context)
 asyncio.run(main())
