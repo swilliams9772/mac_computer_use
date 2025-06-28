@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, cast
+import os
 
 import httpx
 from anthropic import Anthropic, AnthropicBedrock, AnthropicVertex, APIResponse
@@ -23,10 +24,20 @@ from anthropic.types.beta import (
     BetaToolResultBlockParam,
 )
 
-from tools import AppleScriptTool, BashTool, ComputerTool, EditTool, SiliconTool, ToolCollection, ToolResult
+from tools import AppleScriptTool, BashTool, EnhancedBashTool, ComputerTool, EditTool, SiliconTool, ToolCollection, ToolResult
 
 BETA_FLAG = "computer-use-2025-01-24"  # Updated to latest version
 
+def _get_streamlit_session_state():
+    """Safely get Streamlit session state if available"""
+    try:
+        import streamlit as st
+        # Only access session state if we're in a proper Streamlit context
+        if hasattr(st, '_get_script_run_ctx') and st._get_script_run_ctx() is not None:
+            return st.session_state
+    except (ImportError, AttributeError):
+        pass
+    return None
 
 class APIProvider(StrEnum):
     ANTHROPIC = "anthropic"
@@ -467,6 +478,8 @@ def get_tool_versions_for_model(model: str) -> dict[str, str]:
             "bash": "bash_20250124",
             "applescript": "custom",  # Custom tools always use "custom"
             "silicon": "custom",      # Custom tools always use "custom"
+            "web_search": "web_search_20250305",  # Latest web search version
+            "web_browser": "custom",   # Custom browser tool
             "beta_flag": "computer-use-2025-01-24"
         }
     # Claude 3.7 Sonnet - Supports extended thinking with token-efficient tools
@@ -477,6 +490,8 @@ def get_tool_versions_for_model(model: str) -> dict[str, str]:
             "bash": "bash_20250124",
             "applescript": "custom",  # Custom tools always use "custom"
             "silicon": "custom",      # Custom tools always use "custom"
+            "web_search": "web_search_20250305",  # Latest web search version
+            "web_browser": "custom",   # Custom browser tool
             "beta_flag": "computer-use-2025-01-24"
         }
     # Claude 3.5 models (fallback to older but stable versions)
@@ -487,6 +502,8 @@ def get_tool_versions_for_model(model: str) -> dict[str, str]:
             "bash": "bash_20241022",
             "applescript": "custom",  # Custom tools always use "custom"
             "silicon": "custom",      # Custom tools always use "custom"
+            "web_search": "web_search_20250305",  # Latest web search version
+            "web_browser": "custom",   # Custom browser tool
             "beta_flag": "computer-use-2024-10-22"
         }
 
@@ -512,6 +529,297 @@ def get_beta_flag_for_model(model: str) -> str:
     """Get the primary beta flag for a given model (backward compatibility)."""
     tool_versions = get_tool_versions_for_model(model)
     return tool_versions["beta_flag"]
+
+# Enhanced tool coordination and cross-tool intelligence
+class ToolCoordinator:
+    """Coordinates between different tools for enhanced workflows"""
+    
+    def __init__(self):
+        self.tool_states = {}
+        self.shared_context = {}
+        self.workflow_history = []
+        self.cross_tool_cache = {}
+        
+    def register_tool_state(self, tool_name: str, state: dict):
+        """Register current state of a tool for cross-tool coordination"""
+        self.tool_states[tool_name] = {
+            "timestamp": datetime.now().isoformat(),
+            "state": state
+        }
+        
+    def get_relevant_context(self, tool_name: str, action: str) -> dict:
+        """Get relevant context from other tools for the current action"""
+        context = {}
+        
+        # Get Silicon tool hardware context for Computer tool optimization
+        if tool_name == "computer" and "silicon" in self.tool_states:
+            silicon_state = self.tool_states["silicon"]["state"]
+            context["hardware"] = {
+                "thermal_state": silicon_state.get("thermal", "normal"),
+                "memory_pressure": silicon_state.get("memory_pressure", "normal"),
+                "performance_cores_available": silicon_state.get("performance_cores", 4)
+            }
+            
+        # Get Bash tool current directory for Edit tool file operations
+        if tool_name == "str_replace_based_edit_tool" and "bash" in self.tool_states:
+            bash_state = self.tool_states["bash"]["state"]
+            context["filesystem"] = {
+                "current_directory": bash_state.get("pwd", "unknown"),
+                "recent_files": bash_state.get("recent_files", [])
+            }
+            
+        return context
+        
+    def suggest_next_tool(self, current_tool: str, current_action: str, result: dict) -> dict:
+        """Suggest next tool and action based on current workflow"""
+        suggestions = {}
+        
+        # After Computer tool takes screenshot, suggest analysis tools
+        if current_tool == "computer" and current_action == "screenshot":
+            suggestions["silicon"] = {
+                "action": "monitor_performance",
+                "reason": "Check system state after visual capture"
+            }
+            
+        # After Bash tool creates files, suggest Edit tool for content
+        if current_tool == "bash" and "created" in str(result.get("output", "")):
+            suggestions["str_replace_based_edit_tool"] = {
+                "action": "view_files",
+                "reason": "Review created files for content verification"
+            }
+            
+        return suggestions
+
+# Enhanced sampling loop with tool coordination
+async def enhanced_sampling_loop(
+    *,
+    model: str,
+    provider: APIProvider,
+    system_prompt_suffix: str,
+    messages: list[BetaMessageParam],
+    output_callback: Callable[[BetaContentBlock], None],
+    tool_output_callback: Callable[[ToolResult, str], None],
+    api_response_callback: Callable[[APIResponse[BetaMessage]], None],
+    api_key: str,
+    only_n_most_recent_images: int | None = None,
+    max_tokens: int | None = None,
+    enable_extended_thinking: bool = False,
+    thinking_budget_tokens: int = 10000,
+    enable_interleaved_thinking: bool = False,
+    api_timeout: int = 120,
+    enable_tool_coordination: bool = True,
+    enable_smart_approval: bool = False,
+):
+    """Enhanced sampling loop with intelligent tool coordination and approval system"""
+    
+    # Initialize coordination system
+    coordinator = ToolCoordinator() if enable_tool_coordination else None
+    
+    # Get appropriate tool versions for the model
+    tool_versions = get_tool_versions_for_model(model)
+    
+    # Initialize enhanced tool collection with coordination
+    from tools import ComputerTool, BashTool, EnhancedBashTool, EditTool, AppleScriptTool, SiliconTool
+    
+    computer_tool = ComputerTool(api_version=tool_versions["computer"])
+    if enable_smart_approval:
+        # Add smart approval system to computer tool
+        computer_tool.approval_system = SmartApprovalSystem()
+        computer_tool.action_context = ActionContext()
+    
+    tool_collection = ToolCollection(
+        computer_tool,
+        BashTool(api_version=tool_versions["bash"]),
+        EditTool(api_version=tool_versions["text_editor"]),
+        AppleScriptTool(api_version=tool_versions["applescript"]),
+        SiliconTool(api_version=tool_versions["silicon"]),
+    )
+    
+    # Enhanced system prompt with coordination instructions
+    enhanced_system_prompt = f"""
+{SYSTEM_PROMPT}
+
+<ENHANCED_TOOL_COORDINATION>
+When using multiple tools, consider how they can work together efficiently:
+
+1. **Cross-tool Context Awareness**: 
+   - Use Silicon tool to check system performance before intensive Computer tool operations
+   - Use Bash tool to understand file system context before Edit tool operations
+   - Use AppleScript for high-level automation when Computer tool actions become repetitive
+
+2. **Intelligent Action Sequencing**:
+   - Take screenshots before and after significant UI changes for verification
+   - Use Edit tool to prepare files before Bash tool executes them
+   - Use Computer tool to verify visual results of programmatic changes
+
+3. **Performance Optimization**:
+   - Monitor thermal state during intensive operations
+   - Batch similar operations for efficiency
+   - Use tool-specific optimizations based on M4 hardware capabilities
+
+4. **Error Recovery and Validation**:
+   - Use multiple verification methods (visual + programmatic)
+   - Implement smart retry strategies across tool boundaries
+   - Learn from successful patterns for future optimization
+</ENHANCED_TOOL_COORDINATION>
+
+{' ' + system_prompt_suffix if system_prompt_suffix else ''}
+"""
+    
+    # Continue with existing sampling loop logic but with enhanced coordination
+    return await sampling_loop(
+        model=model,
+        provider=provider,
+        system_prompt_suffix=enhanced_system_prompt,
+        messages=messages,
+        output_callback=output_callback,
+        tool_output_callback=tool_output_callback,
+        api_response_callback=api_response_callback,
+        api_key=api_key,
+        only_n_most_recent_images=only_n_most_recent_images,
+        max_tokens=max_tokens,
+        enable_extended_thinking=enable_extended_thinking,
+        thinking_budget_tokens=thinking_budget_tokens,
+        enable_interleaved_thinking=enable_interleaved_thinking,
+        api_timeout=api_timeout,
+    )
+
+def _consolidate_response_content_blocks(content_blocks):
+    """
+    Consolidate fragmented text blocks with citations into coherent content blocks.
+    This prevents the fragmentation issue where each citation creates a separate text block.
+    Fixes the issue at the API response level before it reaches the UI.
+    """
+    if not content_blocks:
+        return content_blocks
+    
+    # Import necessary types here to avoid circular imports
+    from anthropic.types.beta import BetaTextBlock
+    
+    consolidated = []
+    current_text_group = []
+    all_citations = []
+    
+    for block in content_blocks:
+        # Handle text blocks - collect them for consolidation
+        if hasattr(block, 'type') and block.type == "text":
+            text_content = getattr(block, 'text', '').strip()
+            citations = getattr(block, 'citations', [])
+            
+            # Skip empty or minimal text fragments that are likely citation artifacts
+            if text_content and not _is_response_citation_fragment(text_content):
+                current_text_group.append(text_content)
+            
+            # Collect citations
+            if citations:
+                all_citations.extend(citations)
+                
+        else:
+            # Non-text block - flush any accumulated text first
+            if current_text_group:
+                consolidated_text = _merge_response_text_fragments(current_text_group)
+                if consolidated_text:
+                    # Create consolidated text block with all citations
+                    consolidated_block = BetaTextBlock(
+                        type="text", 
+                        text=consolidated_text
+                    )
+                    # Add citations if we have them
+                    if all_citations:
+                        consolidated_block.citations = all_citations
+                    
+                    consolidated.append(consolidated_block)
+                
+                # Reset for next group
+                current_text_group = []
+                all_citations = []
+            
+            # Add the non-text block
+            consolidated.append(block)
+    
+    # Handle any remaining text group
+    if current_text_group:
+        consolidated_text = _merge_response_text_fragments(current_text_group)
+        if consolidated_text:
+            consolidated_block = BetaTextBlock(
+                type="text", 
+                text=consolidated_text
+            )
+            if all_citations:
+                consolidated_block.citations = all_citations
+            
+            consolidated.append(consolidated_block)
+    
+    return consolidated
+
+
+def _is_response_citation_fragment(text: str) -> bool:
+    """
+    Identify if a text fragment is likely a citation artifact that should be filtered out.
+    """
+    text = text.strip()
+    
+    # Empty or whitespace-only
+    if not text:
+        return True
+    
+    # Single characters or symbols
+    if len(text) <= 2 and text in ["-", ".", ",", ":", ";", "|", " - ", " . "]:
+        return True
+    
+    # Common citation separators
+    citation_separators = [" - ", "- ", " .", ". ", " ,", ", "]
+    if text in citation_separators:
+        return True
+    
+    # Single word artifacts
+    if len(text.split()) == 1 and text.lower() in ["and", "or", "but", "with", "the", "a", "an"]:
+        return True
+    
+    return False
+
+
+def _merge_response_text_fragments(text_list: list) -> str:
+    """
+    Intelligently merge text fragments with proper spacing and punctuation.
+    """
+    if not text_list:
+        return ""
+    
+    # Clean up individual fragments
+    cleaned_fragments = []
+    for text in text_list:
+        text = text.strip()
+        if text and not _is_response_citation_fragment(text):
+            cleaned_fragments.append(text)
+    
+    if not cleaned_fragments:
+        return ""
+    
+    # Join fragments with intelligent spacing
+    merged = ""
+    for i, fragment in enumerate(cleaned_fragments):
+        if i == 0:
+            merged = fragment
+        else:
+            # Add appropriate spacing based on punctuation
+            if merged.endswith(('.', '!', '?', ':')):
+                # Sentence ending - add space and potentially capitalize
+                if not fragment[0].isupper():
+                    fragment = fragment[0].upper() + fragment[1:] if len(fragment) > 1 else fragment.upper()
+                merged += " " + fragment
+            elif merged.endswith(','):
+                # Comma - add space
+                merged += " " + fragment
+            elif fragment.startswith(('.', ',', '!', '?', ';', ':')):
+                # Fragment starts with punctuation - no space
+                merged += fragment
+            else:
+                # Default - add space
+                merged += " " + fragment
+    
+    return merged.strip()
+
 
 async def sampling_loop(
     *,
@@ -588,13 +896,101 @@ async def sampling_loop(
                 )
             )
 
-        # Prepare API call parameters
+        # Prepare API call parameters with server-side tools
+        tools_params = tool_collection.to_params()
+        
+        # Enhanced Web Search Tool Configuration based on app state
+        web_search_tool = {
+            "type": "web_search_20250305",
+            "name": "web_search"
+        }
+        
+        # Get web search configuration from session state safely
+        session_state = _get_streamlit_session_state()
+        if session_state is not None:
+            # Streamlit app configuration
+            web_search_enabled = getattr(session_state, 'web_search_enabled', True)
+            max_uses = getattr(session_state, 'web_search_max_uses', 5)
+            filter_type = getattr(session_state, 'web_search_filter_type', 0)
+            location_enabled = getattr(session_state, 'web_search_location_enabled', True)
+            
+            if not web_search_enabled:
+                # Skip adding web search tool if disabled
+                pass
+            else:
+                web_search_tool["max_uses"] = max_uses
+                
+                # Domain filtering configuration
+                if filter_type == 1:  # Allow List
+                    domains_text = getattr(session_state, 'web_search_allow_list_domains', '')
+                    if domains_text.strip():
+                        allowed_domains = [domain.strip() for domain in domains_text.split('\n') if domain.strip()]
+                        web_search_tool["allowed_domains"] = allowed_domains
+                
+                elif filter_type == 2:  # Block List
+                    domains_text = getattr(session_state, 'web_search_block_list_domains', '')
+                    if domains_text.strip():
+                        blocked_domains = [domain.strip() for domain in domains_text.split('\n') if domain.strip()]
+                        web_search_tool["blocked_domains"] = blocked_domains
+                
+                # Location-based search configuration
+                if location_enabled:
+                    city = getattr(session_state, 'web_search_location_city', 'San Francisco')
+                    region = getattr(session_state, 'web_search_location_region', 'California')
+                    country = getattr(session_state, 'web_search_location_country', 'US')
+                    timezone = getattr(session_state, 'web_search_location_timezone', 'America/Los_Angeles')
+                    
+                    if city and region and country:
+                        web_search_tool["user_location"] = {
+                            "type": "approximate",
+                            "city": city,
+                            "region": region,
+                            "country": country,
+                            "timezone": timezone
+                        }
+                
+                tools_params.append(web_search_tool)
+        else:
+            # CLI or non-Streamlit environment - use environment variables and defaults
+            web_search_enabled = os.getenv("WEB_SEARCH_ENABLED", "true").lower() == "true"
+            
+            if web_search_enabled:
+                # Max uses from environment or default
+                max_uses = int(os.getenv("WEB_SEARCH_MAX_USES", "5"))
+                web_search_tool["max_uses"] = max_uses
+                
+                # Domain filtering from environment
+                allowed_domains = os.getenv("WEB_SEARCH_ALLOWED_DOMAINS")
+                if allowed_domains:
+                    web_search_tool["allowed_domains"] = [domain.strip() for domain in allowed_domains.split(',')]
+                
+                blocked_domains = os.getenv("WEB_SEARCH_BLOCKED_DOMAINS")
+                if blocked_domains:
+                    web_search_tool["blocked_domains"] = [domain.strip() for domain in blocked_domains.split(',')]
+                
+                # Location configuration from environment
+                if not os.getenv("WEB_SEARCH_NO_LOCATION"):
+                    city = os.getenv("WEB_SEARCH_CITY", "San Francisco")
+                    region = os.getenv("WEB_SEARCH_REGION", "California")
+                    country = os.getenv("WEB_SEARCH_COUNTRY", "US")
+                    timezone = os.getenv("WEB_SEARCH_TIMEZONE", "America/Los_Angeles")
+                    
+                    web_search_tool["user_location"] = {
+                        "type": "approximate",
+                        "city": city,
+                        "region": region,
+                        "country": country,
+                        "timezone": timezone
+                    }
+                
+                tools_params.append(web_search_tool)
+
         api_params = {
             "max_tokens": max_tokens,
             "messages": messages,
             "model": model,
             "system": system,
-            "tools": tool_collection.to_params(),
+            "tools": tools_params,
             "betas": get_beta_flags_for_model(model),
         }
 
@@ -692,16 +1088,35 @@ async def sampling_loop(
         api_response_callback(cast(APIResponse[BetaMessage], raw_response))
         response = raw_response.parse()
 
+        # CONSOLIDATION FIX: Apply consolidation to response content blocks before processing
+        consolidated_content = _consolidate_response_content_blocks(response.content)
+        
         messages.append(
             {
                 "role": "assistant",
-                "content": cast(list[BetaContentBlockParam], response.content),
+                "content": cast(list[BetaContentBlockParam], consolidated_content),
             }
         )
 
         tool_result_content: list[BetaToolResultBlockParam] = []
-        for content_block in cast(list[BetaContentBlock], response.content):
-            print("CONTENT", content_block)
+        for content_block in cast(list[BetaContentBlock], consolidated_content):
+            # Enhanced logging for better debugging without cluttering the output
+            if hasattr(content_block, 'type'):
+                if content_block.type == "text":
+                    # For text blocks, show a clean summary instead of raw object
+                    text_preview = content_block.text[:100] + "..." if len(content_block.text) > 100 else content_block.text
+                    citations_info = f" (with {len(content_block.citations)} citations)" if hasattr(content_block, 'citations') and content_block.citations else ""
+                    print(f"📝 TEXT BLOCK: {text_preview}{citations_info}")
+                elif content_block.type == "tool_use":
+                    print(f"🔧 TOOL USE: {content_block.name} - {list(content_block.input.keys()) if hasattr(content_block, 'input') else 'no input'}")
+                elif content_block.type == "thinking":
+                    thinking_preview = content_block.thinking[:100] + "..." if hasattr(content_block, 'thinking') and len(content_block.thinking) > 100 else getattr(content_block, 'thinking', '')
+                    print(f"🧠 THINKING: {thinking_preview}")
+                else:
+                    print(f"🔍 CONTENT ({content_block.type}): {content_block}")
+            else:
+                print(f"❓ UNKNOWN CONTENT: {content_block}")
+                
             output_callback(content_block)
             if content_block.type == "tool_use":
                 result = await tool_collection.run(

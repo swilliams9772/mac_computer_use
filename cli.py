@@ -623,6 +623,27 @@ async def main():
     parser.add_argument("--load-session", action="store_true", help="Load most recent session on startup")
     parser.add_argument("--auto-save", action="store_true", help="Auto-save session every 10 messages")
     
+    # Enhanced Web Search Configuration Options
+    web_search_group = parser.add_argument_group('Web Search Configuration')
+    web_search_group.add_argument("--disable-web-search", action="store_true",
+                                 help="Disable the web search tool entirely")
+    web_search_group.add_argument("--web-search-max-uses", type=int, default=5,
+                                 help="Maximum web searches per request (default: 5)")
+    web_search_group.add_argument("--web-search-allowed-domains", 
+                                 help="Comma-separated list of allowed domains (e.g., example.com,docs.anthropic.com)")
+    web_search_group.add_argument("--web-search-blocked-domains",
+                                 help="Comma-separated list of blocked domains")
+    web_search_group.add_argument("--web-search-city", default="San Francisco",
+                                 help="City for search localization (default: San Francisco)")
+    web_search_group.add_argument("--web-search-region", default="California",
+                                 help="Region/state for search localization (default: California)")
+    web_search_group.add_argument("--web-search-country", default="US",
+                                 help="Country code for search localization (default: US)")
+    web_search_group.add_argument("--web-search-timezone", default="America/Los_Angeles",
+                                 help="IANA timezone for search localization (default: America/Los_Angeles)")
+    web_search_group.add_argument("--web-search-no-location", action="store_true",
+                                 help="Disable location-based search localization")
+    
     args = parser.parse_args()
     
     # Print header
@@ -631,6 +652,34 @@ async def main():
     # Set up provider
     provider = APIProvider(args.provider)
     print_colored(f"📡 Provider: {provider.title()}", Colors.CYAN)
+    
+    # Configure web search environment variables based on CLI args
+    if args.disable_web_search:
+        os.environ["WEB_SEARCH_ENABLED"] = "false"
+        print_colored("🔍 Web Search: Disabled", Colors.YELLOW)
+    else:
+        os.environ["WEB_SEARCH_ENABLED"] = "true"
+        os.environ["WEB_SEARCH_MAX_USES"] = str(args.web_search_max_uses)
+        
+        if args.web_search_allowed_domains:
+            os.environ["WEB_SEARCH_ALLOWED_DOMAINS"] = args.web_search_allowed_domains
+            print_colored(f"🔍 Web Search: Allowed domains - {args.web_search_allowed_domains}", Colors.GREEN)
+        
+        if args.web_search_blocked_domains:
+            os.environ["WEB_SEARCH_BLOCKED_DOMAINS"] = args.web_search_blocked_domains
+            print_colored(f"🔍 Web Search: Blocked domains - {args.web_search_blocked_domains}", Colors.YELLOW)
+        
+        if not args.web_search_no_location:
+            os.environ["WEB_SEARCH_CITY"] = args.web_search_city
+            os.environ["WEB_SEARCH_REGION"] = args.web_search_region  
+            os.environ["WEB_SEARCH_COUNTRY"] = args.web_search_country
+            os.environ["WEB_SEARCH_TIMEZONE"] = args.web_search_timezone
+            print_colored(f"🌍 Web Search Location: {args.web_search_city}, {args.web_search_region}, {args.web_search_country}", Colors.CYAN)
+        else:
+            os.environ["WEB_SEARCH_NO_LOCATION"] = "true"
+            print_colored("🌍 Web Search: Location-based search disabled", Colors.YELLOW)
+            
+        print_colored(f"🔍 Web Search: Enabled (max {args.web_search_max_uses} searches per request)", Colors.GREEN)
     
     # Get API key
     api_key = args.api_key or get_api_key(provider)

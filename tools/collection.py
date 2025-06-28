@@ -28,6 +28,18 @@ class ToolCollection:
         tool = self.tool_map.get(name)
         if not tool:
             return ToolFailure(error=f"Tool {name} is invalid")
+        
+        # Check if this is a server-side tool that should not be executed locally
+        tool_params = tool.to_params()
+        if tool_params.get("type", "").startswith("web_search_"):
+            # This is a server-side tool - should not be executed locally
+            # The API should have already handled this tool call
+            return ToolFailure(error=f"Tool {name} is a server-side tool and should not be executed locally. This indicates a configuration error.")
+        
+        # Special handling for web search tool by name (in case type is not set correctly)
+        if name == "web_search":
+            return ToolFailure(error=f"Web search tool should be handled server-side by Anthropic API, not locally. If you're seeing this error, it means the tool configuration needs to be checked.")
+        
         try:
             return await tool(**tool_input)
         except ToolError as e:
